@@ -280,12 +280,137 @@ the treatment of these periods needs stating before the model is built.
 
 ## 6. Solution approach
 
-<!-- TODO: solver choice, and whether the horizon is solved whole or decomposed
-     (for example day by day with a linking state of charge). -->
+### Solver
+
+HiGHS, through `pulp`. Both are already dependencies, and HiGHS reads the model
+in process rather than through a file, which matters because the horizon is
+solved as a sequence of many small programs rather than one large one.
+
+### Why the horizon is decomposed
+
+Posed whole, the program carries one binary $u(t)$ for each of the 52,608
+periods. Solve time grows steeply, and erratically, with the window length: on
+this data a day solves in about 0.04 s and two days in 0.2 s, but a week takes
+around 3 s and a fortnight anywhere from 5 s to 17 s depending on which
+fortnight it is. Extrapolating that to three years is not worth attempting, and
+the unpredictability is itself a reason to prefer windows small enough to solve
+reliably.
+
+The horizon is therefore walked in windows. Each window solves
+$\text{commit} + \text{lookahead}$ periods, keeps the decisions of the
+committed part, and hands $S$ and $n_{\text{cyc}}$ at that point to the next
+window as its opening state. One day committed with one day of lookahead is the
+default. The lookahead is solved and then discarded; without it each day would
+be decided as if the horizon ended at midnight, and the battery would always
+end the day empty even when the next morning pays more than the evening did.
+
+### What decomposition costs
+
+Two couplings reach beyond a single window:
+
+- **State of charge.** Carried exactly by the handover, so the only loss is of
+  foresight past the lookahead, not of feasibility.
+- **Cycle life (§4.6).** Global. Each window carries the cycles already spent
+  and caps the cumulative count, so the budget can never be overspent — but a
+  window cannot see what a later one would have done with a cycle, so a binding
+  budget is simply consumed by the earliest days that can use it.
+
+The second is handled by pricing the budget rather than splitting it. A charge
+$\lambda$ per equivalent full cycle is added to the objective,
+
+$$
+\max \sum_{t \in \mathcal{T}} R(t) - \lambda \, n_{\text{cyc}}(T)
+$$
+
+which makes each window spend a cycle only on a spread worth at least
+$\lambda$. The $\lambda$ wanted is the budget's shadow price: the largest
+charge at which the horizon still spends its whole budget. Cycle use falls
+monotonically in $\lambda$, so it is found by bisection, re-solving the horizon
+at each step.
+
+On this data, with the full 5,000-cycle budget of §5, the cap is never reached
+and $\lambda = 0$: the round-trip loss of §4.2 rules out the narrow spreads
+long before the cycle budget runs out, so the windows need no rationing and the
+decomposition loses only the foresight past its lookahead. Unrationed dispatch
+spends 3,443 cycles (§7), so under the pro-rated budget of 1,500 cycles the cap
+*would* bind and $\lambda$ would become active; what it is worth there has not
+been measured, since each bisection step re-solves the whole horizon.
+
+### How much foresight is enough
+
+One day of lookahead is sufficient on this data. Over June 2018:
+
+| Committed | Lookahead | Profit | Cycles |
+| --- | --- | --- | --- |
+| 1 day | none | £4,589 | 78.4 |
+| 1 day | 1 day | £4,621 | 79.2 |
+| 1 day | 2 days | £4,621 | 79.2 |
+| 7 days | 1 day | £4,621 | 79.2 |
+
+Deciding each day blind to the next costs 0.7%, and nothing is gained past the
+first day of lookahead: committing a whole week at a time reaches the same
+profit as committing one day with one day in view. That is what one would
+expect of a 4 MWh store that can fill in two hours — its decisions do not
+reach far beyond the day they are taken in, and the cycle budget, which is the
+one thing that would couple distant days, is not binding.
 
 ## 7. Results
 
-<!-- TODO: headline profit, and whatever supports it. -->
+Over 2018-01-01 to 2020-12-31, dispatched by the rolling windows of §6 with the
+full cycle budget:
+
+| Figure | Value |
+| --- | --- |
+| **Profit** | **£207,365** |
+| Energy bought | 14,497 MWh at a mean £34.98/MWh |
+| Energy delivered | 13,083 MWh at a mean £54.61/MWh |
+| Equivalent full cycles | 3,443 of 5,000 |
+| Storage volume at the end | 3.86 MWh, from 4.00 nominal |
+| Periods charging / discharging / idle | 16,778 / 15,181 / 20,649 of 52,608 |
+| Profit per cycle spent | £60.23 |
+
+Reproduce with `uv run battery-case dispatch`, which writes the half-hourly
+schedule every figure above is read off.
+
+### Reading the result
+
+**The markets are used as a pair, not interchangeably.** Market 2 is dearer
+than Market 1 in 77.5% of periods, by £3.51/MWh on average, and the schedule
+takes that: of the 14,497 MWh bought, 11,210 is bought in Market 1, and of the
+13,083 MWh delivered, 11,174 goes into Market 2. Part of the profit is
+arbitrage over time, part is the standing gap between the two markets, and the
+hourly commitment of §4.5 is what the second part is paid for bearing.
+
+**The cycle budget does not bind.** 3,443 cycles of the 5,000 available are
+used, so no cycle is rationed and the shadow price of §6 is zero. Degradation
+costs $\rho \, n_{\text{cyc}}(T) = 3.4\%$ of the storage volume by the end of
+2020, leaving 3.86 of the nominal 4 MWh. Under the pro-rated budget of 1,500
+cycles discussed in §5 the cap would bind, and the dispatch would be materially
+different — fewer, wider spreads.
+
+**The result improves as prices fall.** Year by year:
+
+| Year | Profit | Mean Market 1 price | Mean Market 2 price | Cycles |
+| --- | --- | --- | --- | --- |
+| 2018 | £67,478 | £58.22/MWh | £61.72/MWh | 967 |
+| 2019 | £63,991 | £41.84/MWh | £45.35/MWh | 1,166 |
+| 2020 | £75,897 | £33.33/MWh | £36.84/MWh | 1,311 |
+
+2020 is the most profitable year on the cheapest prices. The battery is paid
+for the *spread*, not the level, and the spread widened as the level fell —
+which is also why it trades more each year, 967 cycles in 2018 against 1,311 in
+2020.
+
+**Scale.** A perfect-foresight yardstick of one ideal 4 MWh cycle a day, bought
+at each day's lowest price and sold at its highest, earns £178,254 over the same
+horizon. The model earns £207,365 because it is not limited to one cycle a day:
+it averages 3.1, taking narrower spreads as well as the daily best. That the
+two are the same order of magnitude is the sanity check on the result.
+
+**What capex and opex would do to it.** Excluded from the objective per §5, but
+for context: £207,365 of trading profit over three years against £500,000 capex
+and £5,000/year fixed opex leaves the asset £307,635 short of paying for itself
+on this data, before any revenue stream other than wholesale arbitrage.
 
 ---
 
