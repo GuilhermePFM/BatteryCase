@@ -222,3 +222,5 @@ __marimo__/
 # Project
 data/results/*
 !data/results/.gitkeep
+data/raw/.~lock.attachment_1_battery_spec.xlsx#
+data/raw/.~lock.attachment_2_market_prices.xlsx#

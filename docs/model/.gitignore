@@ -3,3 +3,7 @@
 *.log
 *.out
 *.synctex.gz
+
+# Rendered previews (model.md is the source of truth)
+*.html
+*.pdf

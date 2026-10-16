@@ -1,0 +1,20 @@
+[
+  {
+    "label": "Render model doc",
+    "command": "make",
+    "args": ["html"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "no_focus"
+  },
+  {
+    "label": "Preview model doc in browser",
+    "command": "make",
+    "args": ["preview"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "no_focus"
+  }
+]
