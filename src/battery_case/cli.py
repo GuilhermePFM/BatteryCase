@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from collections.abc import Sequence
 from dataclasses import asdict
+from pathlib import Path
+
+import pandas as pd
 
 from battery_case.data_io import load_battery_spec, load_market_prices, price_quality_report
-from battery_case.data_io.paths import BATTERY_SPEC_XLSX, MARKET_PRICES_XLSX
+from battery_case.data_io.paths import BATTERY_SPEC_XLSX, MARKET_PRICES_XLSX, RESULTS_DIR
+from battery_case.modelling import ModelParameters, RollingDispatcher, build_grid, summarise
+from battery_case.modelling.rolling import PERIODS_PER_DAY
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -18,6 +24,36 @@ def build_parser() -> argparse.ArgumentParser:
     inputs.add_argument("--spec", default=BATTERY_SPEC_XLSX, help="Path to Attachment 1")
     inputs.add_argument("--prices", default=MARKET_PRICES_XLSX, help="Path to Attachment 2")
     inputs.set_defaults(func=_cmd_inputs)
+
+    dispatch = subparsers.add_parser("dispatch", help="Solve the dispatch model and report profit")
+    dispatch.add_argument("--spec", default=BATTERY_SPEC_XLSX, help="Path to Attachment 1")
+    dispatch.add_argument("--prices", default=MARKET_PRICES_XLSX, help="Path to Attachment 2")
+    dispatch.add_argument("--start", help="First timestamp to dispatch over (default: all data)")
+    dispatch.add_argument("--end", help="Last timestamp to dispatch over (default: all data)")
+    dispatch.add_argument(
+        "--commit-days",
+        type=int,
+        default=1,
+        help="Days committed per solved window (default: 1)",
+    )
+    dispatch.add_argument(
+        "--lookahead-days",
+        type=int,
+        default=1,
+        help="Days of foresight beyond the committed window, then discarded (default: 1)",
+    )
+    dispatch.add_argument(
+        "--cycle-price",
+        type=float,
+        default=0.0,
+        help="Charge in GBP per equivalent full cycle used (default: 0)",
+    )
+    dispatch.add_argument(
+        "--out",
+        default=RESULTS_DIR / "dispatch_schedule.csv",
+        help="Where to write the half-hourly schedule (.csv, or .parquet)",
+    )
+    dispatch.set_defaults(func=_cmd_dispatch)
 
     return parser
 
@@ -44,6 +80,60 @@ def _cmd_inputs(args: argparse.Namespace) -> int:
     print("\nData quality")
     print(price_quality_report(prices).to_string())
     return 0
+
+
+def _cmd_dispatch(args: argparse.Namespace) -> int:
+    spec = load_battery_spec(args.spec)
+    prices = load_market_prices(args.prices)
+
+    params = ModelParameters.from_spec(spec)
+    grid = build_grid(prices).between(args.start, _end_of_day(args.end))
+    dispatcher = RollingDispatcher(
+        commit_periods=args.commit_days * PERIODS_PER_DAY,
+        lookahead_periods=args.lookahead_days * PERIODS_PER_DAY,
+        cycle_price=args.cycle_price,
+        on_window=_progress,
+    )
+
+    print(
+        f"Dispatching {len(grid):,} half-hourly periods "
+        f"({grid.timestamps[0]:%Y-%m-%d} to {grid.timestamps[-1]:%Y-%m-%d}) "
+        f"in windows of {args.commit_days}d + {args.lookahead_days}d lookahead",
+        flush=True,
+    )
+    schedule = dispatcher.run_on_grid(grid, params)
+    print(file=sys.stderr)
+
+    print("\nResults")
+    for field, value in summarise(schedule, params).items():
+        print(f"  {field:<30} {value:>16,.2f}")
+
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    if out.suffix == ".parquet":
+        schedule.to_parquet(out)
+    else:
+        schedule.to_csv(out)
+    print(f"\nSchedule written to {out}")
+    return 0
+
+
+def _end_of_day(value: str | None) -> pd.Timestamp | None:
+    """Read ``--end`` as inclusive of the whole day when no time is given."""
+    if value is None:
+        return None
+    end = pd.Timestamp(value)
+    return end + pd.Timedelta(days=1) if end.normalize() == end else end
+
+
+def _progress(done: int, total: int) -> None:
+    """One line, overwritten, so a three-year solve shows it is moving."""
+    print(
+        f"\r  {done:,}/{total:,} periods ({done / total:6.1%})",
+        end="",
+        file=sys.stderr,
+        flush=True,
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> int:

@@ -23,6 +23,7 @@ dev = [
     "mypy>=1.13",
     "pandas-stubs>=2.2",
     "jupyterlab>=4.3",
+    "ipykernel>=7.4.0",
 ]
 
 [build-system]
@@ -48,7 +49,7 @@ select = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"notebooks/*" = ["E402"]
+"notebooks/*" = ["E402", "B018"]  # bare expressions are cell output
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
