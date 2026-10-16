@@ -310,9 +310,13 @@ Posed whole, the program carries one binary $u(t)$ for each of the 52,608
 periods. Solve time grows steeply, and erratically, with the window length: on
 this data a day solves in about 0.04 s and two days in 0.2 s, but a week takes
 around 3 s and a fortnight anywhere from 5 s to 17 s depending on which
-fortnight it is. Extrapolating that to three years is not worth attempting, and
-the unpredictability is itself a reason to prefer windows small enough to solve
-reliably.
+fortnight it is. The cliff sits between 30 and 60 days: a month solves to
+proven optimality in 30 s, two months could not be proved in 900 s. Posed whole,
+the program is 315,649 rows, 368,256 columns and 52,608 binaries; given an hour,
+HiGHS never left the root node, returning a feasible schedule worth
+£204,077.77 against a dual bound of £208,209.57 — a 2.02% gap, and £3,287 worse
+than the decomposition reaches in minutes. The full measurements are in
+[`tractability.md`](tractability.md).
 
 The horizon is therefore walked in windows. Each window solves
 $\text{commit} + \text{lookahead}$ periods, keeps the decisions of the
@@ -321,6 +325,44 @@ window as its opening state. One day committed with one day of lookahead is the
 default. The lookahead is solved and then discarded; without it each day would
 be decided as if the horizon ended at midnight, and the battery would always
 end the day empty even when the next morning pays more than the evening did.
+
+### The decomposition algorithm
+
+Write $W$ for the committed length and $H$ for the lookahead, both in periods
+and both a whole number of hours, so that no hourly interval of §4.5 is split
+across a window boundary. Let $\mathcal{W}_k = \{kW, \dots, \min(kW + W + H,
+T)\}$ be the $k$-th window, and $P(\mathcal{W}, s)$ the program of §3–§4.7
+restricted to the periods $\mathcal{W}$ and opened from state $s = (S^0,
+n^0_{\text{cyc}})$ — that is, §4.2 and §4.6 read $S^0$ and $n^0_{\text{cyc}}$
+as their $t-1$ values in the window's first period, and §4.6 caps the
+*cumulative* count, not the window's own use.
+
+$$
+\begin{aligned}
+&s_0 \leftarrow (0, 0) \\
+&\textbf{for } k = 0, 1, \dots, \lceil T/W \rceil - 1: \\
+&\qquad x^k \leftarrow \arg\max P(\mathcal{W}_k, s_k) \qquad \text{(one MILP)} \\
+&\qquad \text{commit } x^k(t) \text{ for } t \in \{kW, \dots, kW + W - 1\},\ \text{discard the lookahead} \\
+&\qquad s_{k+1} \leftarrow \bigl(S^{x^k}(kW + W - 1),\ n^{x^k}_{\text{cyc}}(kW + W - 1)\bigr) \\
+&\textbf{return } \text{the concatenated committed decisions}
+\end{aligned}
+$$
+
+Three properties follow, and they are the reason this is sound rather than
+merely convenient:
+
+- **The result is feasible for the undecomposed program.** Every constraint of
+  §4 is either local to a period, local to an hour inside a window, or carried
+  exactly by $s_k$. Nothing is repaired afterwards: the saved three-year
+  schedule is checked against §4.1–§4.7 as it stands.
+- **Cost is linear in the horizon.** $\lceil T/W \rceil$ programs of fixed size,
+  rather than one whose difficulty grows faster than its length. Measured at
+  0.55 s a day, steady between 30 and 60 days, so a pass over 2018–2020 takes
+  about 10 minutes.
+- **The only thing lost is foresight.** Each window optimises as if the horizon
+  ended at $kW + W + H$. What that costs is measured in *How much foresight is
+  enough* below; what it cannot fix is the one coupling the handover does not
+  carry, which is the subject of the next two sections.
 
 ### What decomposition costs
 
@@ -333,26 +375,137 @@ Two couplings reach beyond a single window:
   window cannot see what a later one would have done with a cycle, so a binding
   budget is simply consumed by the earliest days that can use it.
 
-The second is handled by pricing the budget rather than splitting it. A charge
-$\lambda$ per equivalent full cycle is added to the objective,
+The second is handled by pricing the budget rather than splitting it — the
+Lagrangian idea, applied to the one constraint that couples distant windows,
+with one consequential difference between the theory and what is implemented.
+
+### Lagrangian relaxation of the cycle budget
+
+Relax $n_{\text{cyc}}(T) \leq \overline{L}$ into the objective with a
+multiplier $\lambda \geq 0$. Writing $R(t)$ for the revenue of §3 and
+$\mathcal{X}$ for the schedules satisfying all of §4 *except* the cap,
 
 $$
-\max \sum_{t \in \mathcal{T}} R(t) - \lambda \, n_{\text{cyc}}(T)
+L(\lambda) \;=\; \max_{x \in \mathcal{X}} \;\Bigl[ \sum_{t \in \mathcal{T}} R(t) \;-\; \lambda \bigl( n_{\text{cyc}}(T) - \overline{L} \bigr) \Bigr]
 $$
 
-which makes each window spend a cycle only on a spread worth at least
-$\lambda$. The $\lambda$ wanted is the budget's shadow price: the largest
-charge at which the horizon still spends its whole budget. Cycle use falls
-monotonically in $\lambda$, so it is found by bisection, re-solving the horizon
-at each step.
+and because $\lambda \overline{L}$ is a constant and $n_{\text{cyc}}(T)$ is a
+sum over windows of what each window spends, the bracket is **separable**: for
+a fixed $\lambda$ each window can be solved alone, needing to know nothing about
+the rest of the horizon except the price. A global constraint has been traded
+for a per-window charge, which is exactly what the decomposition needs.
+Implemented, the charge is the $-\lambda\,(n_{\text{cyc}}(T) - n^0_{\text{cyc}})$
+term already written into the objective of each window.
 
-On this data, with the full 5,000-cycle budget of §5, the cap is never reached
-and $\lambda = 0$: the round-trip loss of §4.2 rules out the narrow spreads
+Three standard properties are worth stating, because the algorithm rests on
+them:
+
+1. **$L$ is convex and piecewise linear in $\lambda$**, being a pointwise
+   maximum of functions affine in $\lambda$.
+2. **$\overline{L} - n_{\text{cyc}}(T)$ is an exact subgradient** of $L$ at
+   $\lambda$, evaluated at the maximiser.
+3. **Weak duality: $L(\lambda) \geq P^\star$ for every $\lambda \geq 0$**, where
+   $P^\star$ is the optimum of the constrained problem. So every evaluation is
+   an upper bound on the best achievable profit, and $\min_{\lambda \geq 0}
+   L(\lambda)$ is the tightest such bound this relaxation offers.
+
+$\lambda$ is in £ per equivalent full cycle and is an opportunity cost: the
+profit the horizon expects to forgo elsewhere if this window spends a cycle
+here. A window then applies a rule that needs no knowledge of the future —
+*take the trade only if the spread clears $\lambda$* — and at the optimal
+$\lambda^\star$ that price is the marginal value of the last cycle in the
+budget, i.e. the budget's shadow price. $\lambda^\star = 0$ means the cap is not
+binding.
+
+#### What the implementation actually solves
+
+One deviation from the theory above matters. Each window keeps the cap **and**
+charges for it, rather than dropping the cap as a relaxation requires. The
+consequence is that cycle use is clipped at $\overline{L}$ by construction, so
+
+- the budget can never be overspent, at any $\lambda$, which is why the
+  decomposed schedule is always feasible; but
+- the subgradient $\overline{L} - n_{\text{cyc}}(T)$ is **zero for every
+  $\lambda$ at which the budget binds**, so it carries no information about
+  whether $\lambda$ is too high or too low, and the dual value computed from a
+  capped pass is not a bound.
+
+The only observable is therefore one bit — *was the budget exhausted?* — and
+`calibrate_cycle_price` is built on that bit. Cycle use is weakly decreasing in
+$\lambda$, so the largest $\lambda$ at which the budget is still spent in full
+is found by bisection:
+
+$$
+\begin{aligned}
+&\text{if } n_{\text{cyc}}(T)\big|_{\lambda = 0} < \overline{L}(1-\epsilon): \textbf{ return } \lambda = 0 \quad \text{(the cap does not bind)} \\
+&[\underline{\lambda}, \overline{\lambda}] \leftarrow [0, \lambda_{\max}] \\
+&\textbf{repeat } N \text{ times:} \\
+&\qquad \lambda \leftarrow \tfrac{1}{2}(\underline{\lambda} + \overline{\lambda}) ,\quad \text{run the whole horizon at } \lambda \\
+&\qquad \text{if the budget is still spent in full: } \underline{\lambda} \leftarrow \lambda \text{ (and keep this schedule)} ;\quad \text{else } \overline{\lambda} \leftarrow \lambda
+\end{aligned}
+$$
+
+with $\epsilon = 10^{-3}$ of the budget and $N = 12$. Each iteration is a full
+pass over the horizon, so the calibrated three-year run costs thirteen passes,
+about 2.2 hours. Three limitations follow from the construction and should be
+read as such:
+
+- **Monotonicity is a per-window property, not a theorem about the
+  composition.** Within one window, from a fixed opening state, a higher charge
+  cannot increase cycle use. Across the horizon the handover changes that
+  opening state, so total use is only empirically monotone in $\lambda$ — which
+  is what the bisection assumes.
+- **No bound is produced.** The method returns a price and a schedule, with no
+  statement of how far either is from optimal.
+- **$\lambda_{\max}$ can clip silently.** If the budget is still fully spent at
+  the ceiling, $\underline{\lambda}$ walks up to it and a price near the ceiling
+  is returned as though it were the shadow price.
+
+#### The cutting-plane alternative
+
+Dropping the cap from the windows — keeping only the charge — restores a true
+relaxation, and with it the subgradient and the bound. $L$ can then be minimised
+by Kelley's cutting-plane method: each pass contributes the cut $L(\lambda_i) +
+g_i(\lambda - \lambda_i)$, a two-variable LP minimises the envelope of the cuts,
+and the next pass is taken at its minimiser. The envelope's value is a lower
+bound on $\min L$ and the best evaluated $L$ an upper bound, so the loop
+terminates on a measured gap rather than an iteration count, and a final capped
+pass at $\lambda^\star$ recovers a feasible schedule.
+
+Measured on a 30-day instance with a deliberately binding budget of 43.65
+cycles, where the whole problem still solves exactly as one MILP:
+
+| | Passes | $\lambda$ | Profit | Bound |
+| --- | --- | --- | --- | --- |
+| Exact, one MILP | — | — | £4,938.15 | optimal |
+| Bisection | 13 | £28.32 | £4,935.45 | none |
+| Cutting planes, with recovery | 11 + 1 | £28.85 | £4,935.43 | £4,938.15 |
+
+The schedules are the same to two pence, and both sit 0.055% under the exact
+answer — that residue is lookahead truncation, which neither method addresses.
+What the second buys is the £4,938.15, which here coincides with the exact
+optimum to the penny: the answer arrives with its quality attached. A 0.01%
+tolerance is reached in 7 passes rather than 13, and the method extends to a
+vector $\lambda$ — one multiplier per quota period, should $\overline{L}$ become
+time-varying as §4.6 anticipates — which bisection cannot.
+
+Two cautions. The relaxation of a mixed-integer program generally leaves a
+duality gap, so closing to zero as both pilots did is a property of these
+instances rather than a guarantee. And weak duality requires each pass to be a
+true maximum of the relaxed problem, while a rolling pass with one day of
+lookahead is a heuristic; the 30-day pilot is a direct test of that
+($£4{,}938.15 \leq £4{,}938.15$) and it held, but the check should be repeated
+on longer horizons before a bound is quoted for the three-year run.
+
+#### On this data
+
+With the full 5,000-cycle budget of §5 the cap is never reached and
+$\lambda^\star = 0$: the round-trip loss of §4.2 rules out the narrow spreads
 long before the cycle budget runs out, so the windows need no rationing and the
 decomposition loses only the foresight past its lookahead. Unrationed dispatch
 spends 3,443 cycles (§7), so under the pro-rated budget of 1,500 cycles the cap
 *would* bind and $\lambda$ would become active; what it is worth there has not
-been measured, since each bisection step re-solves the whole horizon.
+been measured, since each pass re-solves the whole horizon.
 
 ### How much foresight is enough
 

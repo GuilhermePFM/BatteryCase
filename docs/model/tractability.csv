@@ -6,3 +6,4 @@ window_days,periods,status,solve_seconds,objective_gbp,best_bound_gbp,gap_pct
 14,672,Optimal,5.0,2370.82,,0.0
 30,1440,Optimal,30.1,5433.90,,0.0
 60,2880,TimeLimit,900.1,12948.07,,
+1096,52608,TimeLimit,3811.8,204077.77,208209.57,2.02

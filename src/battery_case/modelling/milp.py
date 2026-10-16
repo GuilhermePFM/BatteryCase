@@ -1,12 +1,14 @@
-"""The mixed-integer linear program of §3 to §4.7, over one window of the grid.
+"""Building, solving and reading back one window of the grid.
 
 One window is one call to the solver. The horizon is covered by solving a
 sequence of windows that hand their end state to the next
-(:mod:`battery_case.modelling.rolling`); the formulation here is the same
-whether the window is a day or the whole horizon.
+(:mod:`battery_case.modelling.rolling`); the formulation is the same whether the
+window is a day or the whole horizon.
 
-Variable and constraint names follow the write-up, so each constraint block can
-be read against its section.
+The formulation itself — the objective of §3 and the constraints of §4 — lives
+in :mod:`battery_case.modelling.constraints`, one function per section.
+:func:`build_problem` only declares the variables and folds those blocks over
+the problem, so this module holds how a window is solved, not what it says.
 """
 
 from __future__ import annotations
@@ -16,24 +18,17 @@ from dataclasses import dataclass
 import numpy as np
 import pulp
 
-from battery_case.modelling.grid import PERIODS_PER_HOUR, DispatchGrid
+from battery_case.modelling.constraints import (
+    DEFAULT_BLOCKS,
+    EMPTY_BATTERY,
+    BatteryState,
+    ConstraintBlock,
+    DispatchVariables,
+    ModelContext,
+    profit_objective,
+)
+from battery_case.modelling.grid import DispatchGrid
 from battery_case.modelling.parameters import ModelParameters
-
-
-@dataclass(frozen=True, slots=True)
-class BatteryState:
-    """The state the energy balance (§4.2) and cycle count (§4.6) carry forward.
-
-    ``storage_mwh`` is ``S(t-1)`` and ``cycles`` is ``n_cyc(t-1)`` for the first
-    period of a window. The battery starts empty and unused, per §4.2 and §4.6.
-    """
-
-    storage_mwh: float = 0.0
-    cycles: float = 0.0
-
-
-#: A battery that has not yet charged or discharged: S(0) = 0, n_cyc(0) = 0.
-EMPTY_BATTERY = BatteryState()
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +58,7 @@ def solve_window(
     state: BatteryState = EMPTY_BATTERY,
     *,
     cycle_price: float = 0.0,
+    blocks: tuple[ConstraintBlock, ...] = DEFAULT_BLOCKS,
     solver: pulp.LpSolver | None = None,
 ) -> WindowSolution:
     """Maximise profit over ``grid``, starting from ``state``.
@@ -73,19 +69,19 @@ def solve_window(
     :func:`battery_case.modelling.rolling.calibrate_cycle_price` sets it when
     the cycle budget binds.
     """
-    problem, variables = build_problem(grid, params, state, cycle_price=cycle_price)
+    problem, var = build_problem(grid, params, state, cycle_price=cycle_price, blocks=blocks)
     stats = problem.solve(solver if solver is not None else default_solver())
 
     if stats.status is not pulp.LpSolveStatus.Optimal:
         raise RuntimeError(f"Window starting {grid.timestamps[0]} solved as {stats.status.name}")
 
     return WindowSolution(
-        charge_1_mw=_values(variables["c1"]),
-        charge_2_mw=_values(variables["c2"]),
-        discharge_1_mw=_values(variables["d1"]),
-        discharge_2_mw=_values(variables["d2"]),
-        storage_mwh=_values(variables["S"]),
-        cycles=_values(variables["n_cyc"]),
+        charge_1_mw=_values(var.c1),
+        charge_2_mw=_values(var.c2),
+        discharge_1_mw=_values(var.d1),
+        discharge_2_mw=_values(var.d2),
+        storage_mwh=_values(var.storage),
+        cycles=_values(var.n_cyc),
         status=stats.status.name,
     )
 
@@ -96,87 +92,25 @@ def build_problem(
     state: BatteryState = EMPTY_BATTERY,
     *,
     cycle_price: float = 0.0,
-) -> tuple[pulp.LpProblem, dict[str, list[pulp.LpVariable]]]:
-    """Assemble the MILP for one window without solving it."""
-    periods = range(len(grid))
-    dt = params.dt
-    keep_charged = 1.0 - params.charge_loss
-    delivered = 1.0 - params.discharge_loss
-    volume = params.nominal_volume_mwh
+    blocks: tuple[ConstraintBlock, ...] = DEFAULT_BLOCKS,
+) -> tuple[pulp.LpProblem, DispatchVariables]:
+    """Assemble the MILP for one window without solving it.
 
+    ``blocks`` are the constraint families to impose, defaulting to the whole of
+    §4 (:data:`~battery_case.modelling.constraints.DEFAULT_BLOCKS`). Leaving one
+    out solves the model without that constraint, which is how a constraint is
+    priced: omitting
+    :func:`~battery_case.modelling.constraints.hourly_commitment`, say, gives
+    the profit Market 2's hourly commitment (§4.5) costs.
+    """
     problem = pulp.LpProblem("battery_dispatch", pulp.LpMaximize)
+    ctx = ModelContext.declare(problem, grid, params, state, cycle_price=cycle_price)
 
-    # Decision variables of §2. The effective volume S_max(t) is substituted out
-    # rather than carried as a variable, as §4.7 permits.
-    c1 = problem.add_variable_matrix("c1", periods, 0, params.max_charge_mw)
-    c2 = problem.add_variable_matrix("c2", periods, 0, params.max_charge_mw)
-    d1 = problem.add_variable_matrix("d1", periods, 0, params.max_discharge_mw)
-    d2 = problem.add_variable_matrix("d2", periods, 0, params.max_discharge_mw)
-    storage = problem.add_variable_matrix("S", periods, 0, volume)
-    n_cyc = problem.add_variable_matrix("n_cyc", periods, 0, params.cycle_budget)
-    charging = problem.add_variable_matrix("u", periods, cat="Binary")
+    profit_objective(problem, ctx)
+    for block in blocks:
+        block(problem, ctx)
 
-    cycles_used = n_cyc[-1] - state.cycles
-
-    # §3 objective: energy delivered at each market's price, less energy bought.
-    problem += (
-        pulp.lpSum(
-            dt
-            * (
-                grid.price_1[t] * (delivered * d1[t] - c1[t])
-                + grid.price_2[t] * (delivered * d2[t] - c2[t])
-            )
-            for t in periods
-        )
-        - cycle_price * cycles_used
-    )
-
-    for t in periods:
-        previous_storage = storage[t - 1] if t else state.storage_mwh
-        previous_cycles = n_cyc[t - 1] if t else state.cycles
-
-        # §4.2 energy balance. Charging is lossy into the store; discharging
-        # debits the full d, the discharge loss being taken in the objective.
-        problem += (
-            storage[t] == previous_storage + dt * (keep_charged * (c1[t] + c2[t]) - d1[t] - d2[t]),
-            f"balance_{t}",
-        )
-
-        # §4.6 equivalent full cycles, counted on the discharge side only.
-        problem += (
-            n_cyc[t] == previous_cycles + dt * (d1[t] + d2[t]) / volume,
-            f"cycles_{t}",
-        )
-
-        # §4.1 with §4.7 substituted in: S(t) <= S_max(t) = volume (1 - rho n(t)).
-        problem += (
-            storage[t] + volume * params.degradation_per_cycle * n_cyc[t] <= volume,
-            f"storage_bound_{t}",
-        )
-
-        # §4.3 charge or discharge, not both, and the rate limits with it.
-        problem += c1[t] + c2[t] <= params.max_charge_mw * charging[t], f"charge_rate_{t}"
-        problem += (
-            d1[t] + d2[t] <= params.max_discharge_mw * (1 - charging[t]),
-            f"discharge_rate_{t}",
-        )
-
-        # §4.5 Market 2 is committed for its whole hourly interval.
-        if t % PERIODS_PER_HOUR:
-            problem += c2[t] - c2[t - 1] == 0, f"hourly_charge_{t}"
-            problem += d2[t] - d2[t - 1] == 0, f"hourly_discharge_{t}"
-
-    # §4.6 cycle life. The cap is already the upper bound of every n_cyc(t)
-    # variable above, which is the same constraint: n_cyc is non-decreasing, so
-    # the two forms are equivalent while the budget is one number for the whole
-    # horizon. This row is redundant, and kept so a solver log naming it points
-    # at the section.
-    problem += n_cyc[-1] <= params.cycle_budget, "cycle_life"
-
-    # §4.4 is implied by §4.1 and §4.2 together and is not restated.
-
-    variables = {"c1": c1, "c2": c2, "d1": d1, "d2": d2, "S": storage, "n_cyc": n_cyc}
-    return problem, variables
+    return problem, ctx.var
 
 
 def default_solver(*, time_limit: float | None = None) -> pulp.LpSolver:

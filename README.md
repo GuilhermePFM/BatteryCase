@@ -85,7 +85,7 @@ uv run battery-case dispatch --start 2018-01-01 --end 2018-01-31
 Development:
 
 ```bash
-uv run pytest             # 37 tests, ~6 s
+uv run pytest             # 49 tests, ~22 s
 uv run mypy               # strict
 uv run ruff check . --fix
 uv run ruff format .
@@ -112,16 +112,16 @@ flowchart TD
 | --- | --- |
 | [`docs/model/model.md`](docs/model/model.md) | The formulation: objective, constraints, assumptions, numbered §1–§7. Every module cites it. |
 | [`docs/data.md`](docs/data.md) | What the two spreadsheets contain, the clock-change artefacts, and why the loader reports rather than repairs. |
-| [`docs/architecture.md`](docs/architecture.md) | How the code is filed, the dependency rule, and every class with the reason it exists. |
+| [`docs/architecture.md`](docs/architecture.md) | How the code is filed, the dependency rule, every class with the reason it exists, and why the constraints are separate blocks. |
 | [`docs/solve.md`](docs/solve.md) | Why the horizon is decomposed, what one window does, and the evidence that a day of foresight suffices. |
 | [`docs/cycle-budget.md`](docs/cycle-budget.md) | The global cycle cap, the bug decomposing it exposed, pricing cycles instead of splitting them, and how λ is found by bisection. |
-| [`docs/validation.md`](docs/validation.md) | The 37 tests, two bugs found by checking rather than thinking, and the questions still open. |
+| [`docs/validation.md`](docs/validation.md) | The 49 tests, two bugs found by checking rather than thinking, and the questions still open. |
 
 ## Layout
 
 ```
 src/battery_case/   the package — see docs/architecture.md
-tests/              37 tests — see docs/validation.md
+tests/              49 tests — see docs/validation.md
 data/raw/           the two spreadsheets supplied with the exercise
 data/results/       model outputs
 docs/brief/         the exercise brief, as supplied

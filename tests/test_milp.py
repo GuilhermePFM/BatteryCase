@@ -8,7 +8,8 @@ import numpy as np
 import pulp
 import pytest
 
-from battery_case.modelling.milp import BatteryState, default_solver, solve_window
+from battery_case.modelling.constraints import BatteryState
+from battery_case.modelling.milp import default_solver, solve_window
 from battery_case.modelling.parameters import ModelParameters
 from tests.helpers import SPEC, make_grid
 

@@ -43,16 +43,17 @@ the budget is *priced*. A charge `λ` per equivalent full cycle enters each
 window's objective:
 
 ```python
-# milp.py — objective, §3 with the cycle charge of §6
+# constraints.py — profit_objective, §3 with the cycle charge of §6
 problem += (
     pulp.lpSum(
-        dt * (
-            grid.price_1[t] * (delivered * d1[t] - c1[t])
-            + grid.price_2[t] * (delivered * d2[t] - c2[t])
+        dt
+        * (
+            ctx.grid.price_1[t] * (ctx.delivered * var.d1[t] - var.c1[t])
+            + ctx.grid.price_2[t] * (ctx.delivered * var.d2[t] - var.c2[t])
         )
-        for t in periods
+        for t in ctx.periods
     )
-    - cycle_price * cycles_used      # cycles_used = n_cyc[-1] - state.cycles
+    - ctx.cycle_price * cycles_used  # cycles_used = var.n_cyc[-1] - ctx.state.cycles
 )
 ```
 
@@ -168,17 +169,17 @@ before the most valuable cycle in the horizon is itself priced out.
 # Probe at zero first: if the budget survives a free run, it does not bind.
 best_schedule = run_whole_horizon(cycle_price=0.0)
 if cycles_used(best_schedule) < budget * (1 - tolerance):
-    return 0.0, best_schedule          # one pass, no bisection
+    return 0.0, best_schedule  # one pass, no bisection
 
-low, high = 0.0, upper_bound           # invariant: low spends in full, high does not
-for _ in range(max_iterations):        # 12
+low, high = 0.0, upper_bound  # invariant: low spends in full, high does not
+for _ in range(max_iterations):  # 12
     price = 0.5 * (low + high)
-    schedule = run_whole_horizon(cycle_price=price)   # 1,096 window MILPs
+    schedule = run_whole_horizon(cycle_price=price)  # 1,096 window MILPs
     if cycles_used(schedule) >= budget * (1 - tolerance):
-        low = best_price = price       # still spends it all — push the price up
-        best_schedule = schedule       # keep it, so no pass is wasted
+        low = best_price = price  # still spends it all — push the price up
+        best_schedule = schedule  # keep it, so no pass is wasted
     else:
-        high = price                   # priced out cycles that would have paid
+        high = price  # priced out cycles that would have paid
 return best_price, best_schedule
 ```
 

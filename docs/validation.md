@@ -9,7 +9,7 @@
 
 ## How the tests are organized
 
-The 37 tests are organized so that each constraint is tested by **the behaviour
+The 49 tests are organized so that each constraint is tested by **the behaviour
 it exists to produce**, not by re-asserting its algebra. Re-stating `S(t) =
 S(t−1) + …` in a test proves only that it was typed twice.
 
@@ -18,7 +18,7 @@ from any schedule, and is run against synthetic shapes, the clock-change week,
 and the full three-year output.
 
 ```bash
-uv run pytest        # 37 tests, ~6 s — no spreadsheet needed for the MILP tests,
+uv run pytest        # 49 tests, ~22 s — no spreadsheet needed for the MILP tests,
                      # no solver needed for the loader tests
 ```
 
@@ -29,6 +29,7 @@ uv run pytest        # 37 tests, ~6 s — no spreadsheet needed for the MILP tes
 | `test_grid.py` | 5 | Hourly prices repeated across their pair, the [mislabelled spring hour](data.md#the-quirks-surfaced-and-deliberately-not-repaired) relabelled without reordering prices, whole-hour slicing, mismatched resolutions rejected |
 | `test_schedule.py` | 5 | Revenue priced on energy *delivered* not drawn, solver noise reported as zero, §4.7 volumes, empty-schedule summary |
 | `test_data_io.py` | 4 | The spec against Attachment 1, both series at their native resolutions, the clock-change artefacts flagged |
+| `test_constraints.py` | 12 | Each constraint block against the rows it adds, without a solver: the named rows per period, §4.5 tying only the second half of each hour, the opening state read only in period 0, and `DEFAULT_BLOCKS` accounting for every row the assembled model holds |
 | `test_cli.py` | 2 | Both commands end to end, including the written schedule's dates and length |
 
 A strict `mypy` pass and `ruff` run alongside.
