@@ -1,0 +1,5 @@
+# LaTeX intermediates, if a TeX engine is ever run directly
+*.aux
+*.log
+*.out
+*.synctex.gz
