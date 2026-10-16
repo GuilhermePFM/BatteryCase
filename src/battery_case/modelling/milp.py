@@ -166,8 +166,11 @@ def build_problem(
             problem += c2[t] - c2[t - 1] == 0, f"hourly_charge_{t}"
             problem += d2[t] - d2[t - 1] == 0, f"hourly_discharge_{t}"
 
-    # §4.6 cycle life. n_cyc is non-decreasing, so capping the last period caps
-    # every period; the upper bound on each variable does the same job.
+    # §4.6 cycle life. The cap is already the upper bound of every n_cyc(t)
+    # variable above, which is the same constraint: n_cyc is non-decreasing, so
+    # the two forms are equivalent while the budget is one number for the whole
+    # horizon. This row is redundant, and kept so a solver log naming it points
+    # at the section.
     problem += n_cyc[-1] <= params.cycle_budget, "cycle_life"
 
     # §4.4 is implied by §4.1 and §4.2 together and is not restated.
