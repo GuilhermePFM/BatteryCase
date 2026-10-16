@@ -214,11 +214,29 @@ n_{\text{cyc}}(T) &\leq \overline{L}
 \end{aligned}
 $$
 
-$n_{\text{cyc}}(t)$ is non-decreasing, so capping the final value caps every
-period. Throughput is measured at the storage side, matching the brief's
-definition of a cycle in terms of stored volume: $d_1 + d_2$ is what leaves the
-store. The nominal $\overline{S}_{\max}$ is the denominator rather than the
-degraded $S_{\max}(t)$, which keeps the constraint linear.
+The cap is written at the end of the horizon, but $n_{\text{cyc}}(t)$ is
+non-decreasing — $d_1, d_2 \geq 0$ — so $n_{\text{cyc}}(t) \leq
+n_{\text{cyc}}(T)$ for every $t$, and the two forms
+
+$$
+n_{\text{cyc}}(T) \leq \overline{L}
+\qquad\Longleftrightarrow\qquad
+n_{\text{cyc}}(t) \leq \overline{L} \quad \forall t \in \mathcal{T}
+$$
+
+define the same feasible set. The implementation uses the second: the cap is the
+upper bound of every $n_{\text{cyc}}(t)$ variable, which costs no row in the
+constraint matrix, and the explicit constraint on the final period is kept only
+so that a solver log naming it points at this section. The equivalence rests on
+monotonicity and on $\overline{L}$ being a single number for the whole horizon;
+it would fail for a time-varying allowance $\overline{L}(t)$ — a per-year quota,
+say — or for any count that could decrease, and the $\forall t$ form would then
+be the only correct one.
+
+Throughput is measured at the storage side, matching the brief's definition of a
+cycle in terms of stored volume: $d_1 + d_2$ is what leaves the store. The
+nominal $\overline{S}_{\max}$ is the denominator rather than the degraded
+$S_{\max}(t)$, which keeps the constraint linear.
 
 ### 4.7 Storage volume degradation
 
