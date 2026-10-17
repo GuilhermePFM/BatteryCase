@@ -271,10 +271,10 @@ the foresight past its lookahead, which
 Under the pro-rated 1,500-cycle budget from §5
 (`ModelParameters.prorated_cycle_budget()`) it binds, 3,443 unrationed use
 against 1,500 available, and `λ` becomes active. What it is worth over the whole
-three years is **not measured**: every step re-solves the horizon at roughly ten
-minutes a pass, so a calibrated three-year run is a couple of hours of compute
-rather than a test-suite item. It *is* measured on shorter instances with the
-budget halved, against the exact answer. On 30 days of real prices the shadow
+three years is **not measured against a truth**: the run itself is cheap enough
+— ten passes, 12 min 49 s with cutting planes — but nothing at that size can be
+solved exactly to check it. It *is* checked on shorter instances with the budget
+halved, against the exact answer. On 30 days of real prices the shadow
 price is £28.85 a cycle and both methods land within 0.05% of an exactly solved
 £4,937.98
 ([pricing experiments §2](model/cycle-price-experiments.md#2-what-each-method-costs-against-a-known-answer)).

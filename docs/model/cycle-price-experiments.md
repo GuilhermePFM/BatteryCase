@@ -18,11 +18,15 @@ both are selectable:
 uv run battery-case dispatch --cycle-pricer bisection
 uv run battery-case dispatch --cycle-pricer cutting-plane
 uv run python scripts/compare_pricers.py 30        # every method on one instance
+uv run python scripts/sweep_pricers.py            # every method, 1 to 90 days
+uv run python scripts/sweep_pricers.py 365 all --pricer cutting-plane --no-exact
 ```
 
 Everything below is measured by that script and by `tests/test_pricing.py`. One
 *pass* means one full rolling run over the instance: 1,096 window MILPs on the
-three-year horizon, about ten minutes. The pass count is what a method costs.
+three-year horizon, measured at about 77 seconds
+([§2](#the-whole-horizon-with-no-truth-to-check-against)). The pass count is
+what a method costs.
 
 ## 1. The subproblem had to change first
 
@@ -69,48 +73,111 @@ bisection's £1,435.55 is the top of a plateau
 ## 2. What each method costs, against a known answer
 
 Each instance is priced against a budget of **half** what the horizon spends
-unpriced, so the cap binds hard. 30 days is small enough to solve whole, as one
+unpriced, so the cap binds hard. Every instance here is also solved whole, as one
 capped MILP, which gives the comparison a ground truth the decomposition cannot
-provide for itself.
+provide for itself — and lets the question "does the cutting-plane method
+reproduce the bisection?" be asked against the right answer rather than against
+the other method.
 
-### Three days, budget 1.0 cycle
+### The test instance: three days, budget 1.0 cycle
 
 | Method | Passes | λ | Profit | Bound | Certified? |
 | --- | --: | --: | --: | --: | --- |
-| exact (one MILP) | — | — | £1,435.79 | optimal | — |
+| exact — one MILP | — | — | £1,435.79 | optimal | — |
 | bisection | 13 | £1,435.55 | £1,435.79 | — | no |
-| cutting planes | 3 | £675.79 | £1,435.79 | £1,435.79 | **yes, zero gap** |
+| cutting planes | 3 | £675.79 | £1,435.79 | £1,435.79 | **yes — zero gap** |
 
-### Seven days of real prices, budget 10.76 cycles
+### Real prices, horizon by horizon
 
-| Method | Passes | Wall clock | λ | Profit | vs exact | Bound | Gap |
-| --- | --: | --: | --: | --: | --: | --: | --: |
-| exact (one MILP) | — | 0.6 s | — | £1,133.62 | — | optimal | — |
-| bisection | 13 | 3.4 s | £22.51 | £1,133.62 | 0.000% | — | — |
-| cutting planes | 7 | 2.6 s | £22.66 | £1,131.23 | −0.211% | £1,133.63 | 0.008% |
+The progression of [`tractability.csv`](tractability.csv), each horizon priced
+against half of what it spends unpriced, both methods on the same instance, and
+the capped program solved whole for a ground truth. Raw numbers in
+[`cycle-price-sweep.csv`](cycle-price-sweep.csv), from
+[`scripts/sweep_pricers.py`](../../scripts/sweep_pricers.py):
 
-### Thirty days of real prices, budget 43.65 cycles
+| Days | Budget | Exact profit | Bis passes | Bis λ | Bis profit | Cut passes | Cut λ | Cut profit | Cut bound | Cut gap | Cut − bis |
+| --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+| 1 | 1.83 | £131.45 | 13 | £11.28 | £131.45 | 7 | £11.33 | £130.10 | £131.45 | 0.000% | −1.03% |
+| 2 | 3.29 | £310.41 | 13 | £18.80 | £310.41 | 9 | £18.82 | £309.23 | £310.41 | 0.000% | −0.38% |
+| 4 | 6.24 | £576.26 | 13 | £21.48 | £575.55 | 9 | £21.52 | £575.55 | £576.26 | 0.000% | 0.00% |
+| 7 | 10.76 | £1,133.62 | 13 | £22.51 | £1,133.62 | 7 | £22.66 | £1,131.23 | £1,133.63 | 0.008% | −0.21% |
+| 14 | 19.67 | £2,190.84 | 13 | £24.71 | £2,176.81 | 8 | £24.49 | £2,176.81 | £2,190.88 | 0.008% | 0.00% |
+| 30 | 43.65 | £4,937.98 | 13 | £28.47 | £4,937.33 | 7 | £28.85 | £4,935.43 | £4,938.22 | 0.004% | −0.04% |
+| 60 | 87.83 | £11,948.15 | 13 | £30.81 | £11,945.75 | 9 | £29.86 | £11,936.95 | £11,948.60 | 0.005% | −0.07% |
+| 90 | 133.03 | £17,594.04 | 13 | £36.77 | £17,592.95 | 9 | £36.17 | £17,577.53 | £17,594.31 | 0.006% | −0.09% |
 
-| Method | Passes | Wall clock | λ | Profit | vs exact | Bound | Gap |
-| --- | --: | --: | --: | --: | --: | --: | --: |
-| exact (one MILP) | — | 3.9 s | — | £4,937.98 | — | optimal | — |
-| bisection | 13 | 15.1 s | £28.47 | £4,937.33 | −0.013% | — | — |
-| cutting planes | 7 | 10.3 s | £28.85 | £4,935.43 | −0.051% | £4,938.22 | 0.004% |
+**Cutting planes reproduces the bisection, and the agreement improves with the
+horizon.** The one-day instance is its worst showing at −1.03%: with 48 periods
+there is almost nothing to ration, so landing a few pence away in λ moves a
+whole trade. From four days on the two schedules differ by less than a
+tenth of a percent, and twice — at 4 and 14 days — they are the same schedule to
+the penny. The charges agree throughout: £11.28 against £11.33 at one day,
+£36.77 against £36.17 at ninety.
 
-What these show:
+**The bound held in every row**, which is the column no bisection run can
+produce. It sits above the exactly solved optimum in all eight instances, by 1p
+at seven days and 27p at ninety — tighter, at 90 days, than 0.002% of the
+answer. HiGHS's own dual bound on the same instances is £4,938.19 at 30 days and
+£17,594.04 at 90, so the Lagrangian bound is within 3p and 27p of what the
+monolith proves, without ever building the monolith.
 
-- **The schedules are the same, to within a twentieth of a percent.** Cutting
-  planes is not a profit improvement. On both real instances bisection's
-  schedule is marginally *better*, by £0.65 on 30 days and £2.39 on seven,
-  because it keeps the best pass it ever saw while the cutting-plane method
-  recovers at the single `λ` its dual settled on.
-- **The bound holds, and it is tight.** £4,938.22 against an exact £4,937.98
-  puts the certificate 24p above the true optimum on 30 days, and 1p on seven.
-  The 30-day run therefore *knows* it is within 0.05% without the ground-truth
-  MILP that checked it here.
-- **The pass count halves.** Seven passes against a fixed thirteen, so about
-  1.3 h instead of 2.2 h on the three-year horizon, with a bound at the end of
-  it.
+**And it is consistently cheaper.** Thirteen passes against seven to nine — a
+mean of 8.4 across the sweep — and lower wall clock in every row: 35.6 s against
+44.7 s at ninety days, 10.4 s against 15.4 s at thirty.
+
+> [!NOTE]
+> Two artefacts of reading these numbers honestly. The 2- and 4-day gaps come
+> out marginally *negative* (order 1e-9): the master LP's envelope minimum is
+> computed to a tolerance, so it can land a hair above the best evaluated `L`.
+> And every row here has a proven exact answer, including 60 and 90 days, which
+> [`tractability.md`](tractability.md) could not prove in 900 s — not a
+> contradiction but a different instance: a cycle budget *halved* against
+> unpriced use is itself a strong constraint, and it prunes the search that the
+> unconstrained 60-day window leaves open.
+
+### The whole horizon, with no truth to check against
+
+The sweep above stops at 90 days because that is as far as a one-shot MILP will
+go, and the exact column is what gives those rows their value. Cutting planes on
+its own goes the rest of the way, each horizon still priced against half of what
+it spends unpriced. Raw numbers in
+[`cycle-price-long-horizons.csv`](cycle-price-long-horizons.csv), from
+`scripts/sweep_pricers.py 180 365 all --pricer cutting-plane --no-exact`:
+
+| Days | Periods | Budget | Passes | λ | Profit | Bound | Dual gap | Bound − profit | Wall clock | Per pass |
+| --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+| 180 | 8,640 | 258.93 | 9 | £39.04 | £30,515.91 | £30,594.05 | 0.005% | 0.26% | 79.1 s | 8.8 s |
+| 365 | 17,520 | 483.42 | 9 | £42.33 | £60,159.13 | £60,424.93 | 0.007% | 0.44% | 141.0 s | 15.7 s |
+| 1,096 | 52,608 | 1,721.48 | 10 | £30.17 | £184,008.73 | £187,240.16 | 0.003% | 1.73% | 768.9 s | 76.9 s |
+
+**The pass count does not grow with the horizon.** Nine passes at 180 and 365
+days and ten over three years, against the seven to nine the 1-to-90-day rows
+spend. Bisection's 13 is a constant as well, so its 1.5× stays 1.5×: roughly 17
+minutes against 13 on the full horizon.
+
+**A pass is far cheaper than this document used to claim.** Three years prices
+in 12 min 49 s end to end, about 77 s a pass, where the text said ten minutes a
+pass and hours of compute — a figure that predated the rolling decomposition and
+was never remeasured against it. Per window MILP that is 0.070 s over three
+years against 0.043–0.049 s at 180 and 365 days: the cost is near enough linear
+in the horizon, with the full run half again as dear per window. That last part
+is measured, not explained.
+
+**The dual converges; the deliverable schedule drifts.** The gap column holds at
+0.003–0.007%, which is the master LP closing on λ, and it is not the interesting
+column here. The distance from the bound to the *feasible* schedule is: 0.10% at
+90 days, 0.26% at 180, 0.44% at 365, 1.73% over three years — £3,231 between
+£184,008.73 and £187,240.16. Whether that is the recovery pass giving up profit
+or the bound being loose cannot be separated without a proven optimum, and none
+exists at this size. The honest statement is the weaker one the certificate
+actually supports: on the three-year instance this schedule is within 1.73% of
+anything the relaxation admits.
+
+> [!NOTE]
+> This is still not the headline instance. The budget here is half of unpriced
+> use, 1,721 cycles over three years, which is why λ is £30.17. Under §5's
+> 5,000-cycle budget the cap does not bind at all and both methods stop after a
+> single pass.
 
 ### The pass count is a choice, not a constant
 
@@ -149,21 +216,24 @@ None of the three reasons is profit:
 
 ## 4. Limits
 
-- **A zero duality gap is a property of these instances.** Lagrangian
+- **A near-zero duality gap is a property of these instances.** Lagrangian
   relaxation of a mixed-integer program generally leaves a gap, and the method
   would then stop with a bracket it cannot close: still correct, less
-  flattering. That both small instances closed to the penny says something about
+  flattering. That eight instances closed to within 0.01% says something about
   this problem's structure and nothing about the next one.
 - **The bound rests on each pass being a true maximum.** Weak duality needs
   `L(λ)` maximised over the relaxed feasible set, and a rolling pass with one day
   of lookahead is a heuristic. It can under-solve and report a value *below* the
-  true `L`, which would leave the bound no bound at all. The 30-day comparison is
-  that check, and it held, twice. It has **not** been checked at 60 or 90 days,
-  and should be before a bound is quoted on the three-year run.
+  true `L`, which would leave the bound no bound at all. The sweep above is that
+  check, and the bound held above the proven optimum in all eight rows — 1 to 90
+  days. That is as far as it is *checked*: the 180-day, 365-day and three-year
+  rows have no proven optimum to check against, so their bounds rest on the pass
+  being a true maximum rather than on evidence.
 - **Neither method fires on the headline run.** With the full 5,000-cycle budget
   of §5 the horizon spends 3,443, so the cap does not bind, `λ* = 0`, and both
   methods stop after a single pass, which `tests/test_pricing.py` asserts. All of
   this serves the pro-rated 1,500-cycle reading, and quotas.
-- **The three-year priced run is still unmeasured.** At roughly ten minutes a
-  pass it is hours of compute either way. The bound makes the ground-truth MILP
-  that validated it at 30 days unnecessary; it does not make the pass cheaper.
+- **The three-year priced run has no ground truth.** It is now measured — 10
+  passes, 12 min 49 s, λ = £30.17 — but the exact MILP that validated the bound
+  at 30 days cannot be built at this size, so nothing independent confirms the
+  £184,008.73. The bound is what stands in for it, and it is 1.73% away.

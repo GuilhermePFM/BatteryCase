@@ -54,18 +54,20 @@ Neither was visible in a run that completed and printed plausible numbers.
 ## Still open
 
 - The value of cycle rationing under the pro-rated budget, over three years.
-  Each step re-solves the whole horizon at ~10 minutes a pass, so a calibrated
-  three-year run takes hours of compute and does not belong in the test suite.
-  It is measured on 7- and 30-day instances with the budget halved, against the
-  exact answer.
+  Each step re-solves the whole horizon, measured at ~77 seconds a pass, so a
+  calibrated three-year run is about 13 minutes — run once, but not a test-suite
+  item. It is measured on eight horizons from 1 to 90 days with the budget
+  halved, each against the exact answer, and on three longer horizons with only
+  the Lagrangian bound to go on.
   ([why it binds there](cycle-budget.md#what-this-means-for-the-actual-answer) ·
   [the measurements](model/cycle-price-experiments.md))
-- The dual bound is validated at 30 days, not at 60 or 90. Weak duality needs
+- The dual bound is validated to 90 days, not to three years. Weak duality needs
   each pass to be a true maximum of the relaxed problem, and a rolling pass with
-  one day of lookahead is a heuristic. The bound held above the exact optimum on
-  both instances checked, which should be repeated at longer horizons before a
-  bound is quoted on the three-year run.
-  ([the limits](model/cycle-price-experiments.md#4-limits))
+  one day of lookahead is a heuristic. The bound held above the proven optimum in
+  all eight horizons swept, 1 to 90 days; the full horizon is twelve times the
+  longest of them and has no proven optimum to check against.
+  ([the sweep](model/cycle-price-experiments.md#real-prices-horizon-by-horizon) ·
+  [the limits](model/cycle-price-experiments.md#4-limits))
 - Foresight is checked on one month, June 2018. A month where the cycle budget
   mattered would test it harder.
   ([the measurement](solve.md#is-one-day-of-foresight-enough))

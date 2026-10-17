@@ -202,7 +202,7 @@ seam.
 
 **`CycleOracle` · `DualPoint`** · `modelling/pricing.py` · §6
 One pass of the horizon at one charge, memoised on `(price, relaxed)` and
-counted. The pass is the unit of cost, ten minutes on the three-year horizon, so
+counted. The pass is the unit of cost, ~77 seconds on the three-year horizon, so
 it is written once and `oracle.passes` is the number any comparison of methods
 turns on rather than a figure each method reports about itself.
 `DualPoint` is what a pass yields: the Lagrangian value, the exact subgradient,

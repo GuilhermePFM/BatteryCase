@@ -1,0 +1,4 @@
+days,periods,budget_cycles,cutting_passes,cutting_seconds,cutting_lambda,cutting_profit_gbp,cutting_bound_gbp,cutting_gap_pct
+180,8640,258.9349,9,79.1,39.04,30515.91,30594.05,0.0048
+365,17520,483.4157,9,141.0,42.33,60159.13,60424.93,0.0072
+1096,52608,1721.4846,10,768.9,30.17,184008.73,187240.16,0.0031

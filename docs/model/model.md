@@ -14,7 +14,10 @@ resolutions, and the battery may split its power between them. The objective is
 to choose a charge/discharge schedule that maximises profit over the horizon.
 
 The battery is a **price taker**: its own actions do not move either market's
-prices, so the price series are exogenous inputs.
+prices, so the price series are exogenous inputs. They are also taken as
+**known**: the whole horizon is given before any decision is made.
+[`model-stochastic.md`](model-stochastic.md) states the same model with that
+second assumption dropped.
 
 The problem is posed as a mixed-integer linear program on a **common half-hourly
 grid**. Market 1 settles natively at that resolution; Market 2 settles hourly,
@@ -267,6 +270,11 @@ drop the variable; the write-up keeps it because it names the quantity.
 The brief invites simplification over completeness. Choices made here:
 
 - **Price taker.** Stated in the brief; prices are exogenous.
+- **Prices are known over the whole horizon.** The schedule is chosen with
+  perfect foresight, which is what makes §7 an upper bound on what a policy
+  without foresight could earn rather than a forecast of revenue. The
+  stochastic formulation is in
+  [`model-stochastic.md`](model-stochastic.md).
 - **The battery starts empty.** $S(0) = 0$. The balance needs some initial
   state; the alternatives are to leave $S(0)$ free, or to impose a cyclic
   condition $S(T) = S(0)$ so the horizon neither starts nor ends with a
