@@ -1,21 +1,15 @@
 # Architecture
 
-*How the code is filed, the one dependency rule, every class with the reason it
-exists, and how two solution algorithms sit behind one seam.*
+*How the code is structured, every class with the reason it exists, why the constraints are separate blocks, and how two pricing algorithms share one seam.*
 
 [← README](../README.md) · [data](data.md) · [solve](solve.md) ·
 [cycle budget](cycle-budget.md) · [validation](validation.md)
 
 ---
 
-## 1. One organizing idea: the code is the write-up
+## 1. One organizing idea: code <-> methodology parity
 
-The formulation lives in [`model/model.md`](model/model.md) as numbered
-sections. Every module under `modelling/` owns a contiguous range of those
-sections and says so in its first line, so a reviewer reading §4.5 can open
-exactly one file and find exactly one implementation of it. The filing
-principle is the paragraphs the code is answerable to, rather than the usual
-"models, services, utils".
+The formulation lives in [`model/model.md`](model/model.md) as numbered sections. Every module under `modelling/` owns a contiguous range of those sections and says so in its first line, so a reviewer reading §4.5 can open exactly one file and find exactly one implementation of it. The filing principle is the paragraphs the code is answerable to, rather than the usual "models, services, utils".
 
 | Module | Sections | What it holds |
 | --- | --- | --- |
@@ -30,10 +24,7 @@ principle is the paragraphs the code is answerable to, rather than the usual
 | `modelling/pricers.py` | §6 | The methods on offer, and the `Dispatcher` adapter |
 | `modelling/schedule.py` | §7 | The schedule and the figures read off it |
 
-One dependency rule holds the package together: **the model cannot read a file,
-and the loaders cannot model.** `data_models/` imports nothing of ours.
-`data_io/` and `modelling/` both depend on it and never on each other. `cli.py`
-is the only module that touches both.
+One dependency rule holds the package together: **the model cannot read a file, and the loaders cannot model.** `data_models/` imports nothing of ours. `data_io/` and `modelling/` both depend on it and never on each other. `cli.py` is the only module that touches both.
 
 ```mermaid
 flowchart TD
@@ -51,12 +42,7 @@ flowchart TD
 
 ### Why this, and not a flat package
 
-Flat was the starting point, and it broke down for one concrete reason:
-`data.py` held the spreadsheet loaders, a `MarketPrices` container *and* a
-data-quality report, so "what shape is the input" and "how do we read the
-input" could not be imported separately. Splitting on **noun / acquisition /
-decision** rather than on file type means the MILP tests need no spreadsheet and
-the loader tests need no solver, so most of the suite needs neither to run.
+Splitting on **noun / acquisition / decision** rather than on file type means the MILP tests need no spreadsheet and the loader tests need no solver, so most of the suite needs neither to run.
 
 ```
 src/battery_case/
@@ -84,145 +70,97 @@ src/battery_case/
 
 ---
 
-## 2. Every file, and the decision inside it
+## 2. Decision decision
 
 ### `data_models`: plain containers with no behaviour of their own
 
-**`BatterySpec`** · `data_models/battery.py` · §2
-Frozen `slots` dataclass whose ten fields mirror Attachment 1 row for row, in
-the spreadsheet's own units. Keeping the odd units here makes the loader
-auditable against the file; every conversion is pushed into `ModelParameters`,
-so there is exactly one place to check them. ([the fields](data.md#attachment-1-the-battery))
+**`BatterySpec`** · `data_models/battery.py` 
 
-**`MarketPrices`** · `data_models/market_prices.py`
-The two price series at their native resolutions, plus `start`, `end` and
-`between()`. `between()` filters with a boolean mask rather than `.loc`
-slicing, because the raw Market 1 index is [not monotonic](data.md#the-quirks-surfaced-and-deliberately-not-repaired)
-at the spring clock changes and label slicing would raise there.
+§2 Frozen `slots` dataclass whose ten fields mirror Attachment 1 row for row, in the spreadsheet's own units. Keeping the odd units here makes the loader auditable against the file; every conversion is pushed into `ModelParameters`, so there is exactly one place to check them. ([the fields](data.md#attachment-1-the-battery))
 
-### `data_io`: acquisition, and a report instead of a repair
+**`MarketPrices`** · `data_models/market_prices.py` 
+
+The two price series at their native resolutions, plus `start`, `end` and `between()`. `between()` filters with a boolean mask rather than `.loc` slicing, because the raw Market 1 index is [not monotonic](data.md#the-quirks-surfaced-and-deliberately-not-repaired) at the spring clock changes and label slicing would raise there.
+
+### `data_io`: file operations
 
 **`load_battery_spec`** · `data_io/loaders.py`
-Reads Attachment 1 through an explicit *spreadsheet label → field name* map and
-raises listing every missing row rather than defaulting silently.
+
+Reads Attachment 1 through an explicit *spreadsheet label → field name* map and raises listing every missing row rather than defaulting silently.
 
 **`load_market_prices`** · `data_io/loaders.py`
-Drops the blank half-hour rows so each series keeps its own resolution, rounds
-Excel's float timestamps to the minute, and preserves row order, which is the
-order the settlement periods occur in and which the grid relies on.
+
+Drops the blank half-hour rows so each series keeps its own resolution, rounds Excel's float timestamps to the minute, and preserves row order, which is the order the settlement periods occur in and which the grid relies on.
 
 **`price_quality_report`** · `data_io/quality.py`
-Counts duplicate timestamps, irregular steps and monotonicity per market, and
-*returns* them. Not a cleaner: the clock-change periods are a modelling
-decision, made visibly in `grid.py`.
 
-### `modelling`: the decision, section by section
+Counts duplicate timestamps, irregular steps and monotonicity per market, and *returns* them. Not a cleaner: the clock-change periods are a modelling decision, made visibly in `grid.py`.
 
-**`DispatchGrid` · `build_grid`** · `modelling/grid.py` · §1, §5
-Projects both markets onto one half-hourly grid as three aligned arrays
-(`timestamps`, `price_1`, `price_2`), with the hourly price repeated across its
-two half hours. Pairing is [positional](data.md#why-pairing-is-positional) and
-Market 2's labels are canonical. `window()` and `between()` keep every slice
-whole-hour aligned, so an hourly commitment can never be cut in half.
+### `modelling`
+
+**`DispatchGrid` · `build_grid`** · `modelling/grid.py` · §1, §5 
+
+Projects both markets onto one half-hourly grid as three aligned arrays (`timestamps`, `price_1`, `price_2`), with the hourly price repeated across its two half hours. Pairing is [positional](data.md#why-pairing-is-positional) and Market 2's labels are canonical. `window()` and `between()` keep every slice whole-hour aligned, so an hourly commitment can never be cut in half.
 
 **`ModelParameters`** · `modelling/parameters.py` · §2
-The spec in the model's units, built by `from_spec`: percent becomes a
-fraction, and the cycle budget becomes an explicit input defaulting to the full
-cycle life. `prorated_cycle_budget()` offers the other reading from §5, three
-years of a ten-year life being 1,500 cycles, so the assumption is a function
-argument a reviewer can flip rather than a number buried in a constraint.
+
+The spec in the model's units, built by `from_spec`: percent becomes a fraction, and the cycle budget becomes an explicit input defaulting to the full cycle life. `prorated_cycle_budget()` offers the other reading from §5, three years of a ten-year life being 1,500 cycles, so the assumption is a function argument a reviewer can flip rather than a number buried in a constraint.
 
 **`BatteryState`** · `modelling/constraints.py` · §4.2, §4.6
-The two numbers a window must hand to the next: `storage_mwh` and `cycles`. A
-named frozen pair rather than two loose floats, because the correctness of the
-decomposition rests on whether the handover carries everything the constraints
-integrate over, and a type makes that question answerable by reading one line.
-`EMPTY_BATTERY` is the *S*(0) = 0 start of §4.2.
+
+The two numbers a window must hand to the next: `storage_mwh` and `cycles`. A named frozen pair rather than two loose floats, because the correctness of the decomposition rests on whether the handover carries everything the constraints integrate over, and a type makes that question answerable by reading one line. `EMPTY_BATTERY` is the *S*(0) = 0 start of §4.2.
 
 **The constraint blocks** · `modelling/constraints.py` · §3–§4.7
-One function per section (`energy_balance` §4.2, `cycle_accounting` §4.6,
-`effective_volume` §4.1+§4.7, `mode_exclusivity` §4.3, `hourly_commitment`
-§4.5, `cycle_life_cap` §4.6), each taking the problem and a `ModelContext` and
-adding its own rows, collected in `DEFAULT_BLOCKS`. The alternative was one
-`build_problem` body with every family interleaved in a single period loop,
-which is unreadable against the write-up and untestable section by section.
-Each constraint is added under a name matching the write-up (`balance_t`,
-`cycles_t`, `storage_bound_t`, `charge_rate_t`, `hourly_charge_t`), so a solver
-log naming an infeasible row points at a section number. Two formulation
-choices are visible here: *S*<sub>max</sub>(*t*) is substituted out instead of
-carried as a variable, as §4.7 permits, and the redundant §4.4 capacity
-constraints are omitted with a comment saying why.
+
+One function per section (`energy_balance` §4.2, `cycle_accounting` §4.6, `effective_volume` §4.1+§4.7, `mode_exclusivity` §4.3, `hourly_commitment` §4.5, `cycle_life_cap` §4.6), each taking the problem and a `ModelContext` and adding its own rows, collected in `DEFAULT_BLOCKS`. This makes the constraint build testable section by section.
+
+Each constraint is added under a name matching the write-up (`balance_t`, `cycles_t`, `storage_bound_t`, `charge_rate_t`, `hourly_charge_t`), so a solver log naming an infeasible row points at a section number. 
+
+Two formulation choices are visible here: *S*<sub>max</sub>(*t*) is substituted out instead of
+carried as a variable, as §4.7 permits, and the redundant §4.4 capacity constraints are omitted with a comment saying why.
 
 **`ModelContext` · `DispatchVariables`** · `modelling/constraints.py`
-What a block is allowed to read: the grid, the parameters, the opening state,
-the variables, and the cycle price. `previous_storage(t)` and
-`previous_cycles(t)` are the one place that knows period 0 reads the handover
-and every other period reads *t*-1, a rule that would otherwise be repeated in
-two blocks. `DispatchVariables` names the seven variable lists, replacing a
+
+What a block is allowed to read: the grid, the parameters, the opening state, the variables, and the cycle price. `previous_storage(t)` and `previous_cycles(t)` are the one place that knows period 0 reads the handover and every other period reads *t*-1, a rule that would otherwise be repeated in two blocks. `DispatchVariables` names the seven variable lists, replacing a
 `dict[str, list[LpVariable]]` whose keys callers had to spell correctly.
 
 **`build_problem` · `solve_window`** · `modelling/milp.py`
-Building and solving are split so the program can be inspected without being
-solved. `build_problem` declares the variables, sets the objective and folds `blocks`
-over the problem, and does nothing else, so the blocks are the only source of
-rows. `blocks` defaults to the whole of §4 and is the counterfactual lever:
-omitting `hourly_commitment` and re-solving prices Market 2's hourly commitment
-(§4.5) in pounds, with no new model code to write or keep correct.
+
+Building and solving are split so the program can be inspected and tested without being solved. `build_problem` declares the variables, sets the objective and folds `blocks` over the problem, and does nothing else, so the blocks are the only source of rows. `blocks` defaults to the whole of §4 and is the counterfactual lever: omitting `hourly_commitment` and re-solving prices Market 2's hourly commitment (§4.5) in pounds, with no new model code to write or keep correct.
 
 **`WindowSolution`** · `modelling/milp.py`
-Decisions as six numpy arrays plus the solver status, and
-`state_after(periods)`, the only place that knows the handover is taken at the
-end of the **committed** part rather than the end of the solved window.
+
+Decisions as six numpy arrays plus the solver status, and `state_after(periods)`, the only place that knows the handover is taken at the end of the **committed** part rather than the end of the solved window.
 
 **`RollingDispatcher`** · `modelling/rolling.py` · §6
-A frozen dataclass of five knobs (`commit_periods`, `lookahead_periods`,
-`cycle_price`, `blocks`, `time_limit`) plus an optional `on_window` progress
-callback. Frozen because [the pricers](model/cycle-price-experiments.md) need variants of
-a configuration without mutating the caller's:
-`replace(dispatcher, cycle_price=λ, blocks=RELAXED_BLOCKS)` is a whole relaxed
-pass. `blocks` is what makes the dispatcher serve both the capped and the
-relaxed subproblem without knowing which method asked. `__post_init__` rejects a
-window that is not a whole number of hours, the one invariant that would
-silently split a Market 2 commitment. What it does with those windows is
+
+A frozen dataclass of five knobs (`commit_periods`, `lookahead_periods`, `cycle_price`, `blocks`, `time_limit`) plus an optional `on_window` progress callback. Frozen because [the pricers](model/cycle-price-experiments.md) need variants of a configuration without mutating the caller's:
+`replace(dispatcher, cycle_price=λ, blocks=RELAXED_BLOCKS)` is a whole relaxed pass. `blocks` is what makes the dispatcher serve both the capped and the relaxed subproblem without knowing which method asked. `__post_init__` rejects a window that is not a whole number of hours, the one invariant that would silently split a Market 2 commitment. What it does with those windows is
 [the solve](solve.md).
 
 **`build_schedule` · `summarise`** · `modelling/schedule.py` · §7
-Turns the arrays into the one DataFrame every figure is read off, with
-`COLUMNS` fixing the contract. `summarise` recomputes profit, mean prices and
-cycles *from those columns*, never from solver internals, so the number in the
-write-up and the number in the file cannot diverge. `effective_volume` is §4.7
-as a plain function, which is also how the test checks the 5% loss at the cycle
-limit.
+
+Turns the arrays into the one DataFrame every figure is read off, with `COLUMNS` fixing the contract. `summarise` recomputes profit, mean prices and cycles *from those columns*, never from solver internals, so the number in the write-up and the number in the file cannot diverge. `effective_volume` is §4.7 as a plain function, which is also how the test checks the 5% loss at the cycle limit.
 
 **`Dispatcher`** · `modelling/dispatch.py`
-A `Protocol` taking prices and returning a schedule, rather than an abstract
-base class, so a heuristic benchmark need not inherit anything to be scored by
-the same `summarise`. Structural typing keeps a class hierarchy out of the
-seam.
+
+A `Protocol` taking prices and returning a schedule, rather than an abstract base class, so a heuristic benchmark need not inherit anything to be scored by the same `summarise`. Structural typing keeps a class hierarchy out of the seam.
 
 **`CycleOracle` · `DualPoint`** · `modelling/pricing.py` · §6
-One pass of the horizon at one charge, memoised on `(price, relaxed)` and
-counted. The pass is the unit of cost, ~77 seconds on the three-year horizon, so
-it is written once and `oracle.passes` is the number any comparison of methods
-turns on rather than a figure each method reports about itself.
-`DualPoint` is what a pass yields: the Lagrangian value, the exact subgradient,
-the profit, the cycles, the schedule, and whether that schedule is deliverable.
+
+One pass of the horizon at one charge, memoised on `(price, relaxed)` and counted. The pass is the unit of cost, ~77 seconds on the three-year horizon, so it is written once and `oracle.passes` is the number any comparison of methods turns on rather than a figure each method reports about itself. `DualPoint` is what a pass yields: the Lagrangian value, the exact subgradient, the profit, the cycles, the schedule, and whether that schedule is deliverable.
 
 **`CyclePricer` · `PRICERS`** · `modelling/pricing.py` · `modelling/pricers.py` · §6
-The seam between the budget's price and the method that finds it, and the
-catalogue of methods behind it. Covered in [§4](#4-two-ways-to-price-the-cycle-budget).
+
+The seam between the budget's price and the method that finds it, and the catalogue of methods behind it. Covered in [§4](#4-two-ways-to-price-the-cycle-budget).
 
 **`PricingResult` · `DualBound`** · `modelling/pricing.py` · §6
-What a pricer returns. `bound` is `DualBound | None`: bisection reads one bit
-per pass and has no certificate to give, so the absence is expressed in the type
-rather than as a sentinel number a report could quote as though it meant
-something.
+
+What a pricer returns. `bound` is `DualBound | None`: bisection reads one bit per pass and has no certificate to give, so the absence is expressed in the type rather than as a sentinel number.
 
 **`CalibratedDispatcher`** · `modelling/pricers.py` · §6
-Prices the budget, then dispatches at that price, implementing `Dispatcher`
-while doing it, so `summarise`, the CLI and the notebooks keep their single
-`run(spec, prices)` seam. `price_and_dispatch` is the wider door for a caller
-that wants the charge, the pass count and the bound as well as the schedule.
+
+Prices the budget, then dispatches at that price, implementing `Dispatcher` while doing it, so `summarise`, the CLI and the notebooks keep their single `run(spec, prices)` seam. `price_and_dispatch` is the wider door for a caller that wants the charge, the pass count and the bound as well as the schedule.
 
 ---
 
