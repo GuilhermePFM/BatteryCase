@@ -7,6 +7,8 @@ produces is covered in ``test_milp.py``.
 
 from __future__ import annotations
 
+import math
+
 import pulp
 import pytest
 
@@ -54,7 +56,7 @@ def _rows(block: ConstraintBlock, grid: DispatchGrid | None = None) -> list[str]
 
 
 def test_variables_are_declared_with_the_bounds_of_the_spec() -> None:
-    """§2, §4.1, §4.6. The volume, rate and cycle caps are variable bounds."""
+    """§2, §4.1. The volume and rate caps are variable bounds."""
     params = _params()
     problem = pulp.LpProblem("vars", pulp.LpMaximize)
     var = DispatchVariables.declare(problem, range(PERIODS), params)
@@ -62,8 +64,18 @@ def test_variables_are_declared_with_the_bounds_of_the_spec() -> None:
     assert var.c1[0].upBound == params.max_charge_mw
     assert var.d1[0].upBound == params.max_discharge_mw
     assert var.storage[0].upBound == params.nominal_volume_mwh
-    assert var.n_cyc[0].upBound == params.cycle_budget
     assert var.charging[0].cat != "Continuous"
+
+
+def test_the_cycle_count_is_left_free_so_that_its_cap_can_be_relaxed() -> None:
+    """§4.6. The budget is a row, not a bound: as a bound it would clip the count
+    even with :func:`cycle_life_cap` omitted, and the relaxation of §6 — which
+    prices the budget by removing it — would relax nothing."""
+    problem = pulp.LpProblem("vars", pulp.LpMaximize)
+    var = DispatchVariables.declare(problem, range(PERIODS), _params())
+
+    assert var.n_cyc[0].upBound == math.inf
+    assert var.n_cyc[0].lowBound == 0
     for variables in (var.c1, var.c2, var.d1, var.d2, var.storage, var.n_cyc, var.charging):
         assert len(variables) == PERIODS
         assert variables[0].lowBound == 0

@@ -17,22 +17,23 @@ Two couplings reach beyond a single window:
   binding budget is simply exhausted by the earliest days. The budget is
   therefore *priced*: ``cycle_price`` charges the objective per equivalent full
   cycle used, which makes each window spend cycles only on spreads worth that
-  charge, and :func:`calibrate_cycle_price` finds the charge that rations the
-  budget across the horizon. With the full 5,000-cycle budget of §5 the cap is
-  not reached on this price data and the charge stays at zero; it earns its
-  keep under the pro-rated budget, or on a longer horizon.
+  charge, and the search for the charge that rations the budget across the
+  horizon lives in :mod:`battery_case.modelling.pricing` and the two methods
+  beside it. With the full 5,000-cycle budget of §5 the cap is not reached on
+  this price data and the charge stays at zero; it earns its keep under the
+  pro-rated budget, or on a longer horizon.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
 
 from battery_case.data_models import BatterySpec, MarketPrices
-from battery_case.modelling.constraints import EMPTY_BATTERY
+from battery_case.modelling.constraints import DEFAULT_BLOCKS, EMPTY_BATTERY, ConstraintBlock
 from battery_case.modelling.grid import PERIODS_PER_HOUR, DispatchGrid, build_grid
 from battery_case.modelling.milp import default_solver, solve_window
 from battery_case.modelling.parameters import ModelParameters
@@ -58,11 +59,19 @@ class RollingDispatcher:
     ``commit_periods`` is how much of each window is kept, ``lookahead_periods``
     how far past it the window sees. Both must be whole hours, so that the
     hourly commitment of §4.5 is never split across a window boundary.
+
+    ``blocks`` are the constraints each window imposes. The default is the whole
+    of §4; a pass of the Lagrangian relaxation of §6 drops the cycle budget from
+    it (:data:`~battery_case.modelling.constraints.RELAXED_BLOCKS`) and charges
+    ``cycle_price`` for cycles instead. The dataclass is frozen, so a relaxed
+    pass is ``replace(dispatcher, blocks=RELAXED_BLOCKS, cycle_price=...)`` and
+    nothing else in the loop changes.
     """
 
     commit_periods: int = PERIODS_PER_DAY
     lookahead_periods: int = PERIODS_PER_DAY
     cycle_price: float = 0.0
+    blocks: tuple[ConstraintBlock, ...] = DEFAULT_BLOCKS
     time_limit: float | None = None
     on_window: Callable[[int, int], None] | None = None
 
@@ -88,7 +97,12 @@ class RollingDispatcher:
         for start in range(0, len(grid), self.commit_periods):
             window = grid.window(start, self.commit_periods + self.lookahead_periods)
             solution = solve_window(
-                window, params, state, cycle_price=self.cycle_price, solver=solver
+                window,
+                params,
+                state,
+                cycle_price=self.cycle_price,
+                blocks=self.blocks,
+                solver=solver,
             )
             committed = min(self.commit_periods, len(window))
             for name in _DECISIONS:
@@ -99,53 +113,3 @@ class RollingDispatcher:
 
         decisions = {name: np.concatenate(values) for name, values in parts.items()}
         return build_schedule(grid, params, **decisions)
-
-
-def calibrate_cycle_price(
-    grid: DispatchGrid,
-    params: ModelParameters,
-    *,
-    dispatcher: RollingDispatcher | None = None,
-    upper_bound: float = 200.0,
-    tolerance: float = 1e-3,
-    max_iterations: int = 12,
-) -> tuple[float, pd.DataFrame]:
-    """Find the charge per cycle that rations a binding cycle budget.
-
-    The budget cannot be overspent — every window caps the cumulative count —
-    so the symptom of a binding budget is that it is *used up*, by whichever
-    days come first rather than by the widest spreads in the horizon. The charge
-    that fixes that is the budget's shadow price: the highest charge at which
-    the horizon still spends its whole budget. Below it the early days overbuy;
-    above it cycles are left unused that would have paid for themselves.
-
-    Cycle use falls monotonically in the charge, so the charge is bisected
-    between zero and ``upper_bound``. A budget that is not exhausted at zero is
-    not binding, and zero is returned after a single run. The schedule comes
-    back with the charge, so no run is wasted.
-
-    ``tolerance`` is the fraction of the budget that may go unspent while the
-    budget still counts as fully used.
-    """
-    dispatcher = dispatcher if dispatcher is not None else RollingDispatcher()
-    spent_in_full = params.cycle_budget * (1.0 - tolerance)
-
-    best_price = 0.0
-    best_schedule = replace(dispatcher, cycle_price=0.0).run_on_grid(grid, params)
-    if _cycles_used(best_schedule) < spent_in_full:
-        return best_price, best_schedule
-
-    low, high = 0.0, upper_bound
-    for _ in range(max_iterations):
-        price = 0.5 * (low + high)
-        schedule = replace(dispatcher, cycle_price=price).run_on_grid(grid, params)
-        if _cycles_used(schedule) >= spent_in_full:
-            low, best_price, best_schedule = price, price, schedule
-        else:
-            high = price
-
-    return best_price, best_schedule
-
-
-def _cycles_used(schedule: pd.DataFrame) -> float:
-    return float(schedule["cycles"].iloc[-1])

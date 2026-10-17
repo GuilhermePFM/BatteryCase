@@ -1,7 +1,7 @@
 # What happens in a solve
 
 *Why the horizon is decomposed, what one window does, and the evidence that a
-day of foresight is enough.*
+day of foresight suffices.*
 
 [← README](../README.md) · [data](data.md) · [architecture](architecture.md) ·
 [cycle budget](cycle-budget.md) · [validation](validation.md)
@@ -16,20 +16,20 @@ flowchart TD
     X2["attachment_2_market_prices.xlsx"] --> L2["load_market_prices"]
     L1 --> S["BatterySpec<br/><i>spreadsheet units</i>"]
     L2 --> P["MarketPrices<br/><i>native resolutions</i>"]
-    S --> PA["ModelParameters.from_spec<br/><i>§2 — units converted once</i>"]
-    P --> G["build_grid<br/><i>§1, §5 — one half-hourly grid</i>"]
-    PA --> R["RollingDispatcher.run_on_grid<br/><i>§6 — 1,096 windows</i>"]
+    S --> PA["ModelParameters.from_spec<br/><i>§2 · units converted once</i>"]
+    P --> G["build_grid<br/><i>§1, §5 · one half-hourly grid</i>"]
+    PA --> R["RollingDispatcher.run_on_grid<br/><i>§6 · 1,096 windows</i>"]
     G --> R
-    R --> SC["build_schedule<br/><i>§7 — one DataFrame</i>"]
-    SC --> SU["summarise<br/><i>headline figures</i>"]
+    R --> SC["build_schedule<br/><i>§7 · one DataFrame</i>"]
+    SC --> SU["summarise<br/><i>the reported figures</i>"]
     SC --> OUT["data/results/dispatch_schedule.csv"]
 ```
 
 ## Why 1,096 programs and not one
 
 `battery-case dispatch` over the full three years is **1,096 mixed-integer
-programs**. The horizon carries a binary per period — the §4.3 exclusivity of
-charging and discharging — and solve time grows steeply *and erratically* with
+programs**. The horizon carries a binary per period, the §4.3 exclusivity of
+charging and discharging, and solve time grows steeply *and erratically* with
 window length:
 
 | Window | Solve time |
@@ -39,13 +39,15 @@ window length:
 | 1 week | ~3 s |
 | 1 fortnight | 5–17 s, depending which fortnight |
 
-Extrapolating that to 52,608 periods is not a plan. So the horizon is walked.
+Extrapolating that to 52,608 periods is not a plan, so the horizon is walked
+instead. The full measurements, including the whole horizon posed as one
+program, are in [`model/tractability.md`](model/tractability.md).
 
 ## One window
 
 ```mermaid
 flowchart LR
-    subgraph W1["window 1 — one MILP, 96 periods"]
+    subgraph W1["window 1 · one MILP, 96 periods"]
         direction LR
         C1["committed · 48p"] --- L1["lookahead · discarded"]
     end
@@ -61,18 +63,17 @@ flowchart LR
 ```
 
 Each window is solved with a day of foresight and committed for only half of
-what it solved. The lookahead exists so the committed day is not decided as if
-the world ended at midnight; it is then thrown away.
+what it solved. The lookahead exists so that the committed day is not decided as
+if the world ended at midnight. It is then thrown away.
 
 Two numbers cross each boundary, carried in a `BatteryState`: the **state of
-charge** and the **cumulative cycle count**. The handover carries them exactly,
-which is why the decomposition stays feasible — and why only the cycle
-*budget*, which couples periods arbitrarily far apart, needed
-[special handling](cycle-budget.md).
+charge** and the **cumulative cycle count**. The handover carries both exactly,
+so the decomposition stays feasible. Only the cycle *budget*, which couples
+periods arbitrarily far apart, needed [special handling](cycle-budget.md).
 
 ```mermaid
 gantt
-    title Rolling windows — solve 96 periods, keep 48, carry the state forward
+    title Rolling windows: solve 96 periods, keep 48, carry the state forward
     dateFormat YYYY-MM-DD
     axisFormat %d %b
 
@@ -110,7 +111,7 @@ sequenceDiagram
     CLI->>G: build_grid(prices)
     G-->>CLI: 52,608 half-hourly periods,<br/>relabelled from Market 2, trimmed on whole hours
     CLI->>R: run_on_grid(grid, ModelParameters.from_spec(spec))
-    loop 1,096 times — one per day
+    loop 1,096 times, one per day
         R->>M: solve 96 periods (48 committed + 48 lookahead)
         M-->>R: WindowSolution
         R->>R: keep first 48, discard the rest,<br/>carry BatteryState (storage, cycles)
@@ -125,29 +126,29 @@ few minutes, with a progress line on stderr.
 
 ## Implementation details of the rolling loop
 
-- **It is linear by construction.** 1,096 MILPs of fixed size (96 periods, 96
-  binaries) rather than one of 52,608 — cost grows linearly in the horizon,
-  where a single program's does not. One `HiGHS` solver object is built per
-  pass and reused across every window.
-- **No warm starts.** Consecutive windows differ only in their prices and their
-  opening state, so each solve rebuilds a model it has essentially seen before.
-  This is the clearest remaining speed-up and it is not implemented.
-- **The last window keeps what it has.** `min(commit_periods, len(window))`
-  commits the tail when the horizon does not divide evenly, and the final
-  window simply has no lookahead to discard.
-- **Windows are whole hours by assertion.** `__post_init__` rejects anything
-  else, because an hourly Market 2 pair of §4.5 split across a boundary would
-  let the two halves be committed to different prices.
-- **The handover is two floats.** `state_after(committed)` reads *S* and
-  *n_cyc* at the last committed period — exactly the two quantities the next
-  window's first-period constraints need.
-- **S_max is substituted, not solved for.** §4.7 lets the degraded capacity be
-  folded into the storage bound (`storage[t] + volume * rho * n_cyc[t] <=
+- Cost is linear in the horizon: 1,096 MILPs of fixed size (96 periods, 96
+  binaries) rather than one of 52,608, whose difficulty grows faster than its
+  length. One `HiGHS` solver object is built per pass and reused across every
+  window.
+- There are no warm starts. Consecutive windows differ only in their prices and
+  their opening state, so each solve rebuilds a model much like the last one.
+  This is the clearest remaining speed-up, and it is not implemented.
+- The last window keeps what it has. `min(commit_periods, len(window))` commits
+  the tail when the horizon does not divide evenly, and the final window has no
+  lookahead to discard.
+- Windows are whole hours by assertion. `__post_init__` rejects anything else,
+  because an hourly Market 2 pair of §4.5 split across a boundary would let the
+  two halves be committed to different prices.
+- The handover is two floats. `state_after(committed)` reads *S* and *n_cyc* at
+  the last committed period, the two quantities the next window's first-period
+  constraints need.
+- S_max is substituted rather than solved for. §4.7 lets the degraded capacity
+  be folded into the storage bound (`storage[t] + volume * rho * n_cyc[t] <=
   volume`), which keeps 52,608 variables out of the full program.
 
 ## Is one day of foresight enough?
 
-On this data, yes — and it is checked rather than assumed. Over June 2018:
+On this data, yes, and it is checked rather than assumed. Over June 2018:
 
 | Configuration | Profit | Against the 1d + 1d baseline |
 | --- | --: | --- |
@@ -155,11 +156,10 @@ On this data, yes — and it is checked rather than assumed. Over June 2018:
 | commit 1 day, 1 day lookahead | £4,621 | baseline |
 | commit 1 week, 1 day lookahead | £4,621 | identical, to the penny |
 
-Deciding each day completely blind to the next costs 0.7%; committing a whole
-week at a time earns *exactly* the same. A 4 MWh store that fills in two hours
-simply does not have decisions that reach far beyond the day they are taken in
-— the state of charge it can carry across midnight is worth at most two hours
-of discharge.
+Deciding each day completely blind to the next costs 0.7%, and committing a
+whole week at a time earns *exactly* the same. The state of charge a 4 MWh store
+can carry across midnight is worth at most two hours of discharge, so its
+decisions do not reach far beyond the day they are taken in.
 
 The caveat is in [validation](validation.md#still-open): this is one month, and
 a month where the cycle budget mattered would test it harder.

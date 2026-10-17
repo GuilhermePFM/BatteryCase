@@ -55,14 +55,21 @@ class DispatchVariables:
     def declare(
         cls, problem: pulp.LpProblem, periods: range, params: ModelParameters
     ) -> DispatchVariables:
-        """Add the variables to ``problem``, bounded by the spec (§2, §4.1, §4.6)."""
+        """Add the variables to ``problem``, bounded by the spec (§2, §4.1).
+
+        ``n_cyc`` is left without an upper bound on purpose, so that
+        :func:`cycle_life_cap` is the only place the budget of §4.6 is imposed
+        and omitting that block really relaxes it. The cycle count is bounded
+        anyway: :func:`cycle_accounting` ties it to the discharge of each
+        period, which §4.3 rate-limits.
+        """
         return cls(
             c1=problem.add_variable_matrix("c1", periods, 0, params.max_charge_mw),
             c2=problem.add_variable_matrix("c2", periods, 0, params.max_charge_mw),
             d1=problem.add_variable_matrix("d1", periods, 0, params.max_discharge_mw),
             d2=problem.add_variable_matrix("d2", periods, 0, params.max_discharge_mw),
             storage=problem.add_variable_matrix("S", periods, 0, params.nominal_volume_mwh),
-            n_cyc=problem.add_variable_matrix("n_cyc", periods, 0, params.cycle_budget),
+            n_cyc=problem.add_variable_matrix("n_cyc", periods, 0),
             charging=problem.add_variable_matrix("u", periods, cat="Binary"),
         )
 
@@ -190,7 +197,14 @@ def effective_volume(problem: pulp.LpProblem, ctx: ModelContext) -> None:
 
 
 def mode_exclusivity(problem: pulp.LpProblem, ctx: ModelContext) -> None:
-    """§4.3 charge or discharge, not both, and the rate limits with it."""
+    """§4.3 charge or discharge, not both, and the rate limits with it.
+
+    The write-up states §4.3 as one pair of inequalities, the rate limit and the
+    binary coupling together, and this block is that pair. Omitting it therefore
+    removes the aggregate rate caps as well — each market's variable keeps only
+    its own bound, so ``c1 + c2`` may reach twice the rate. That is what
+    dropping §4.3 means; it is not a relaxation of the binary alone.
+    """
     var = ctx.var
     for t in ctx.periods:
         problem += (
@@ -232,3 +246,21 @@ DEFAULT_BLOCKS: tuple[ConstraintBlock, ...] = (
     hourly_commitment,  # §4.5
     cycle_life_cap,  # §4.6
 )
+
+
+def relaxing(*blocks: ConstraintBlock) -> tuple[ConstraintBlock, ...]:
+    """:data:`DEFAULT_BLOCKS` without ``blocks`` — the model that prices them.
+
+    Removing a constraint is how it is priced: solve without it, charge for
+    violating it in the objective, and the charge that restores feasibility is
+    the constraint's shadow price. Raises if a block is not in the default set,
+    so a typo cannot silently relax nothing.
+    """
+    unknown = [block.__name__ for block in blocks if block not in DEFAULT_BLOCKS]
+    if unknown:
+        raise ValueError(f"not constraints of the default model: {', '.join(unknown)}")
+    return tuple(block for block in DEFAULT_BLOCKS if block not in blocks)
+
+
+#: §4 with the cycle budget removed, for the Lagrangian relaxation of §6.
+RELAXED_BLOCKS: tuple[ConstraintBlock, ...] = relaxing(cycle_life_cap)

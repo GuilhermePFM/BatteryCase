@@ -10,7 +10,8 @@ import pytest
 from battery_case.modelling.grid import DispatchGrid
 from battery_case.modelling.milp import solve_window
 from battery_case.modelling.parameters import ModelParameters, prorated_cycle_budget
-from battery_case.modelling.rolling import RollingDispatcher, calibrate_cycle_price
+from battery_case.modelling.pricers import calibrate_cycle_price
+from battery_case.modelling.rolling import RollingDispatcher
 from battery_case.modelling.schedule import COLUMNS, summarise
 from tests.helpers import SPEC, TOLERANCE, assert_feasible, hourly_mean, make_grid
 

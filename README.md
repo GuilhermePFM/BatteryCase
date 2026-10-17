@@ -1,12 +1,11 @@
 # Battery dispatch model
 
 **Aurora second-round technical exercise.** A 2 MW / 4 MWh battery, two
-wholesale electricity markets at different settlement resolutions, three years
-of half-hourly prices. The question: what should the battery do, and what is
-that worth?
+wholesale electricity markets at different settlement resolutions, and three
+years of half-hourly prices. What should the battery do, and what is that worth?
 
 **£207,365** of trading profit over 2018–2020, using **3,443 of the battery's
-5,000 cycles** — from a mixed-integer linear program solved as 1,096 rolling
+5,000 cycles**, from a mixed-integer linear program solved as 1,096 rolling
 daily windows.
 
 | | |
@@ -15,8 +14,8 @@ daily windows.
 | **Cycles used** | 3,443 of 5,000 |
 | **Periods dispatched** | 52,608 half hours |
 | **MILPs solved per run** | 1,096 |
-| **Tests** | 37, green in ~6 s |
-| **Source** | 1,137 lines under `src/` |
+| **Tests** | 64, green in ~10 s |
+| **Source** | 1,833 lines under `src/` |
 
 ## The problem in one picture
 
@@ -39,21 +38,20 @@ flowchart LR
     B -.-> D["<b>Wear</b><br/>0.001% volume lost<br/>per equivalent full cycle<br/>5,000-cycle life"]
 ```
 
-Three consequences drive everything else:
+Three consequences shape the rest:
 
-- **A round trip keeps only 90.25%** of what it buys (0.95 × 0.95). A spread has
-  to beat ~11% before a trade is worth making at all.
+- **A round trip keeps only 90.25%** of what it buys (0.95 × 0.95), so a spread
+  has to beat about 11% before a trade is worth making.
 - **Charging and discharging must be mutually exclusive.** The two markets
-  diverge, so without a binary forbidding it the "battery" would simply buy in
-  one and sell into the other in the same instant — an arbitrage machine, not a
-  store.
+  diverge, so without a binary forbidding it the battery would buy in one and
+  sell into the other in the same instant, wheeling energy it never stores.
 - **Market 2's decisions are held flat across each hour**, imposed on the
   decision variables rather than on the prices, because that is what committing
   capacity to an hourly product means.
 
 The result is a MILP on a common half-hourly grid, solved a day at a time with a
-day of foresight, because 52,608 periods each carrying a binary is not one
-tractable program.
+day of foresight. 52,608 periods each carrying a binary is not one tractable
+program.
 
 ## Running it
 
@@ -80,12 +78,22 @@ uv run battery-case dispatch --start 2018-01-01 --end 2018-01-31
 | `--commit-days` | `1` | How much of each solved window is kept |
 | `--lookahead-days` | `1` | Foresight beyond the committed part, then discarded |
 | `--cycle-price` | `0.0` | £ charged per equivalent full cycle used |
+| `--cycle-pricer` | none | Search for that charge instead, by `bisection` or `cutting-plane` (§6) |
 | `--out` | `data/results/dispatch_schedule.csv` | `.csv` or `.parquet` |
+
+The cycle budget only needs a charge when it binds, and on the full 5,000-cycle
+budget it does not, so `--cycle-pricer` costs one pass and returns zero. It
+matters under the pro-rated budget of §5. Compare the two methods on one
+instance with:
+
+```bash
+uv run python scripts/compare_pricers.py 30
+```
 
 Development:
 
 ```bash
-uv run pytest             # 49 tests, ~22 s
+uv run pytest             # 64 tests, ~10 s
 uv run mypy               # strict
 uv run ruff check . --fix
 uv run ruff format .
@@ -97,35 +105,40 @@ make preview              # render docs/model/model.md to HTML and open it
 ```mermaid
 flowchart TD
     R["<b>README</b><br/>the problem, the answer, how to run it"]
-    M["<b>docs/model/model.md</b><br/>the formulation — the maths, §1–§7"]
+    M["<b>docs/model/model.md</b><br/>the formulation · the maths, §1–§7"]
     D["<b>docs/data.md</b><br/>the two attachments and their quirks"]
     A["<b>docs/architecture.md</b><br/>the packages, every file, the decision inside it"]
-    S["<b>docs/solve.md</b><br/>what happens in a solve — the rolling horizon"]
-    C["<b>docs/cycle-budget.md</b><br/>the one constraint decomposition can get wrong<br/>— and the λ that fixes it"]
+    S["<b>docs/solve.md</b><br/>what happens in a solve · the rolling horizon"]
+    C["<b>docs/cycle-budget.md</b><br/>the one constraint decomposition can get wrong<br/>and the λ that fixes it"]
+    X["<b>docs/model/cycle-price-experiments.md</b><br/>bisection vs cutting planes, measured<br/>against an exact solve"]
     V["<b>docs/validation.md</b><br/>what is checked, what was found, what is open"]
 
     R --> M
     R --> D --> A --> S --> C --> V
+    M --> X
+    C --> X
 ```
 
 | Document | Read it for |
 | --- | --- |
 | [`docs/model/model.md`](docs/model/model.md) | The formulation: objective, constraints, assumptions, numbered §1–§7. Every module cites it. |
 | [`docs/data.md`](docs/data.md) | What the two spreadsheets contain, the clock-change artefacts, and why the loader reports rather than repairs. |
-| [`docs/architecture.md`](docs/architecture.md) | How the code is filed, the dependency rule, every class with the reason it exists, and why the constraints are separate blocks. |
+| [`docs/architecture.md`](docs/architecture.md) | How the code is filed, the dependency rule, every class with the reason it exists, why the constraints are separate blocks, and how two pricing algorithms share one seam. |
 | [`docs/solve.md`](docs/solve.md) | Why the horizon is decomposed, what one window does, and the evidence that a day of foresight suffices. |
 | [`docs/cycle-budget.md`](docs/cycle-budget.md) | The global cycle cap, the bug decomposing it exposed, pricing cycles instead of splitting them, and how λ is found by bisection. |
-| [`docs/validation.md`](docs/validation.md) | The 49 tests, two bugs found by checking rather than thinking, and the questions still open. |
+| [`docs/model/cycle-price-experiments.md`](docs/model/cycle-price-experiments.md) | Why a capped pass has no usable gradient, and both pricing methods measured against exactly solved instances: passes, λ, profit and the dual bound. |
+| [`docs/model/tractability.md`](docs/model/tractability.md) | Solve time against window length, and the whole horizon as one MILP: the measurements behind decomposing it. |
+| [`docs/validation.md`](docs/validation.md) | The 64 tests, what checking found that thinking had not, and the questions still open. |
 
 ## Layout
 
 ```
-src/battery_case/   the package — see docs/architecture.md
-tests/              49 tests — see docs/validation.md
+src/battery_case/   the package, described in docs/architecture.md
+tests/              64 tests, described in docs/validation.md
 data/raw/           the two spreadsheets supplied with the exercise
 data/results/       model outputs
 docs/brief/         the exercise brief, as supplied
-docs/model/         model.md — the formulation (renders on GitHub)
+docs/model/         the formulation, plus the solver experiments behind it
 notebooks/          exploratory analysis
 Makefile            render targets for the model document
 ```

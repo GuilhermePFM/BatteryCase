@@ -1,8 +1,8 @@
 # Tractability: one MILP, or a sequence of them?
 
 §6 of [`model.md`](model.md) decomposes the horizon into rolling daily windows and
-asserts that solving all 52,608 periods at once is not practical. This file is the
-measurement behind that assertion, and the comparison it is worth keeping.
+asserts that solving all 52,608 periods at once is not practical. This file holds
+the measurements behind that assertion.
 
 Everything here comes from [`scripts/solve_monolith.py`](../../scripts/solve_monolith.py),
 which builds the formulation of §4 over the first *N* days and hands it to HiGHS
@@ -27,7 +27,7 @@ available). Raw numbers in [`tractability.csv`](tractability.csv).
 | 30 days | 1,440 | 1,440 | optimal | 30.1 s |
 | 60 days | 2,880 | 2,880 | **time limit, no proof** | 900 s, stopped |
 
-The growth is steep and not smooth — 14 days is only half again as slow as 7, then
+The growth is steep and not smooth. 14 days is only half again as slow as 7, and
 30 days is six times slower than 14. The cliff for this formulation sits between
 30 and 60 days: a two-month window could not be proved optimal in fifteen minutes.
 1,096 days is thirty-six times further out than the last window that solved.
@@ -45,9 +45,9 @@ Built as one MILP the problem is:
 | Build time (pulp) | 2.4 s |
 | After HiGHS presolve | 223,429 rows, 276,038 columns |
 
-So the model *fits* — assembling it is trivial and presolve handles it. Solving it
-is the problem. Given an hour (HiGHS checked the limit between separation rounds
-and stopped at 3,812 s):
+The model *fits*: assembling it takes 2.4 s and presolve handles it. Solving it is
+the problem. Given an hour (HiGHS checked the limit between separation rounds and
+stopped at 3,812 s):
 
 | Elapsed | Best bound | Incumbent | Gap |
 | --- | --- | --- | --- |
@@ -66,49 +66,49 @@ Nodes         0
 LP iterations 210520 (49853 separation)
 ```
 
-`Nodes 0` is the headline: in an hour the search **never branched**. It spent the
-whole hour at the root, generating and re-generating tens of thousands of cuts to
-drag the bound down from £211,477 to £208,210, and the last 2,000 s of that bought
-0.18 percentage points. The 52,608 binaries were never explored at all.
+`Nodes 0` is the striking part: in an hour the search **never branched**. It spent
+the whole hour at the root, generating and re-generating tens of thousands of cuts
+to drag the bound down from £211,477 to £208,210, and the last 2,000 s of that
+bought 0.18 percentage points. The 52,608 binaries were never explored at all.
 
 ## What the comparison says
 
 The rolling decomposition returns **£207,365.00**, in minutes of 1,096 small
-solves. That is *above* every incumbent the one-shot MILP found in an hour,
-and below its best bound. Two things follow, and it is worth being
-precise about how much each one is worth.
+solves. That is *above* every incumbent the one-shot MILP found in an hour, and
+below its best bound. What follows from that, and what does not:
 
 **What is guaranteed.** Branch and bound maintains a *dual bound*: the best
 objective achievable by any relaxation of the problem still in the tree. For a
 maximisation the optimum can never exceed it, so the bound is an upper limit on
-the MILP optimum, not an estimate of it. Separately, the rolling schedule is
-feasible for the one-shot program — it satisfies every constraint of §4 over the
+the MILP optimum rather than an estimate of it. Separately, the rolling schedule
+is feasible for the one-shot program: it satisfies every constraint of §4 over the
 whole horizon (`assert_feasible` in `tests/helpers.py` re-derives them against the
 saved schedule), and evaluating the §3 objective expression on it reproduces
-£207,365.00 exactly. A feasible point is a lower limit. So the optimum of **this
-model** is bracketed, and with the run stopped at its limit the bracket is:
+£207,365.00 exactly. A feasible point is a lower limit. The optimum of **this
+model** is therefore bracketed, and with the run stopped at its limit the bracket
+is:
 
 ```
 £207,365.00  <=  model optimum  <=  £208,209.57
 ```
 
-so the rolling schedule is within **0.41%** of the optimum of this model — an
-upper limit on what it gives up, not a measured loss, and it would narrow further
-had the bound kept falling.
+so the rolling schedule is within **0.41%** of the optimum of this model. That is
+an upper limit on what it gives up rather than a measured loss, and it would
+narrow further had the bound kept falling.
 
 **What is not guaranteed.** The bracket says nothing about the real world. It
-bounds the optimum of the formulation — perfect price foresight, a price-taking
-battery, linear degradation, losses as specified in §4 — and the modelling choices
-behind those are a far larger source of error than half a percent. The bound is
-also only as sound as the solver's arithmetic: HiGHS works to finite feasibility
-and integrality tolerances, so read it as £208,210 give or take solver noise, not
-to the penny. And it is a bound on the *optimum*, not on what the decomposition
-would lose on different data: nothing here shows the gap stays this small on
-another three years of prices.
+bounds the optimum of the formulation, with its perfect price foresight,
+price-taking battery, linear degradation and losses as specified in §4, and those
+modelling choices are a far larger source of error than half a percent. The bound
+is also only as sound as the solver's arithmetic: HiGHS works to finite
+feasibility and integrality tolerances, so read it as £208,210 give or take solver
+noise rather than to the penny. It is a bound on the *optimum*, not on what the
+decomposition would lose on different data; nothing here shows the gap stays this
+small on another three years of prices.
 
-**The engineering conclusion does not depend on the bound at all.** Given a fixed
-hour the one-shot solve returns a *worse* schedule (£204,077.77) than the
-decomposition does — £3,287 worse, 1.6% — because branch and bound spends the hour
-proving things about the root relaxation of a 368,000-variable problem rather than
-trading. The bound then adds the reassurance that what the decomposition leaves
-behind is small: at most 0.41% of the model optimum, on this data.
+**The engineering conclusion does not depend on the bound.** Given a fixed hour
+the one-shot solve returns a schedule worth £3,287 less than the decomposition's,
+1.6% worse, because branch and bound spends the hour proving things about the root
+relaxation of a 368,000-variable problem rather than trading. The bound adds the
+reassurance that what the decomposition leaves behind is small: at most 0.41% of
+the model optimum, on this data.
