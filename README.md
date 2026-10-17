@@ -1,28 +1,37 @@
 # Battery dispatch model
+## Introduction
 
-**Aurora second-round technical exercise.** A 2 MW / 4 MWh battery, two
-wholesale electricity markets at different settlement resolutions, and three
-years of half-hourly prices. What should the battery do, and what is that worth?
+The repository contains a model for battery's deterministic economic dispacth (perfect information). The model has the following features:
 
-**£207,365** of trading profit over 2018–2020, using **3,443 of the battery's
-5,000 cycles**, from a mixed-integer linear program solved as 1,096 rolling
-daily windows.
+1. §4.1 Storage bounds
+2. §4.2 Energy balance with efficiency: Charge loss (5%) and discharge loss (5%)
+3. §4.3 Complementarity + charge/discharge rate limits. One binary forbids simultaneous charge/discharge.
+4. §4.4 Battery maximum capacity (headroom/stock).
+5. §4.5 Market 2 hourly commitment and Market 1 half-hourly commitment. Interacts with §4.3: the battery cannot charge in one half hour and sell into Market 2 in the other half of the same hour.
+6. §4.6 Cycle accounting and life cap.
+7. §4.7 Battery Degradation.
 
-| | |
+The approach is a single mixed-integer linear program: half-hourly charge and discharge in each market as the decision variables, round-trip losses and the hourly commitment of Market 2 as constraints, and arbitrage profit net of cycle wear as the objective. 
+
+One program over all 52,608 periods is not tractable, so **the horizon is decomposed** into flexible windows (input parameter), e.g. 1,096 daily windows. Each window is solved with a foresight and committed decision, more details in the modelling document. 
+
+There are two decomposition implementations: a cutting-plane algorithm and a bissection (grid-search).
+
+The model lives in `src/battery_case/`, the formulation it implements is written out section by
+section in `docs/model/model.md`, and every number quoted in the documents comes from a committed run. 
+
+## Index
+
+| Section | What it covers |
 | --- | --- |
-| **Profit, 2018–2020** | £207,365 |
-| **Cycles used** | 3,443 of 5,000 |
-| **Periods dispatched** | 52,608 half hours |
-| **MILPs solved per run** | 1,096 |
-| **Tests** | 64, green in ~10 s |
-| **Source** | 1,833 lines under `src/` |
+| [The problem in one picture](#the-problem-in-one-picture) | The two markets, the battery, the wear, and the three consequences that shape the model |
+| [Running it](#running-it) | Install with uv, the two commands, every flag, the pricer scripts, the dev loop |
+| [Where to read what](#where-to-read-what) | The documents, in reading order, with what each one answers |
+| [Layout](#layout) | What lives in each directory |
 
 ## The problem in one picture
 
-The battery buys and sells in two markets. Market 1 settles every half hour;
-Market 2 settles hourly, so anything committed to it is committed for the whole
-hour. Energy is lost on the way in and on the way out, and every MWh pushed
-through wears the asset out a little.
+The battery buys and sells in two markets. Market 1 settles every half hour; Market 2 settles hourly, so anything committed to it is committed for the whole hour. Energy is lost on the way in and on the way out, and every MWh pushed through wears the asset out a little.
 
 ```mermaid
 flowchart LR
@@ -49,8 +58,7 @@ Three consequences shape the rest:
   decision variables rather than on the prices, because that is what committing
   capacity to an hourly product means.
 
-The result is a MILP on a common half-hourly grid, solved a day at a time with a
-day of foresight. 52,608 periods each carrying a binary is not one tractable
+The result is a MILP on a common half-hourly grid, solved a window(e.g. day) at a time with another window (e.g. day) of foresight. 52,608 periods each carrying a binary is not one tractable
 program.
 
 ## Running it
@@ -65,8 +73,7 @@ uv run battery-case inputs      # load both spreadsheets, print spec + data qual
 uv run battery-case dispatch    # solve all three years (a few minutes)
 ```
 
-`dispatch` writes the half-hourly schedule to `data/results/` and prints the
-headline figures. Restrict it for a quick look:
+`dispatch` writes the half-hourly schedule to `data/results/` and prints the headline figures. Restrict it for a quick look:
 
 ```bash
 uv run battery-case dispatch --start 2018-01-01 --end 2018-01-31
@@ -81,10 +88,7 @@ uv run battery-case dispatch --start 2018-01-01 --end 2018-01-31
 | `--cycle-pricer` | none | Search for that charge instead, by `bisection` or `cutting-plane` (§6) |
 | `--out` | `data/results/dispatch_schedule.csv` | `.csv` or `.parquet` |
 
-The cycle budget only needs a charge when it binds, and on the full 5,000-cycle
-budget it does not, so `--cycle-pricer` costs one pass and returns zero. It
-matters under the pro-rated budget of §5. Compare the two methods on one
-instance with:
+The cycle budget only needs a charge when it binds, and on the full 5,000-cycle budget it does not, so `--cycle-pricer` costs one pass and returns zero. It matters under the pro-rated budget of §5. Compare the two methods on one instance with:
 
 ```bash
 uv run python scripts/compare_pricers.py 30    # one instance, against an exact solve
