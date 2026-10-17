@@ -166,19 +166,7 @@ Prices the budget, then dispatches at that price, implementing `Dispatcher` whil
 
 ## 3. The formulation as constraint blocks
 
-The constraints of §4 were first written as one `build_problem` body: seven
-`add_variable_matrix` calls, the objective, and five constraint families
-interleaved inside a single `for t in periods` loop. It worked and it was
-correct. It was also the one place in the package where the organizing idea of
-§1 broke down: §4.1, §4.2, §4.3, §4.5 and §4.6 shared a loop body, so no section
-could be read, tested or changed on its own, and the promise that "each
-constraint block can be read against its section" survived only as a comment
-convention.
-
-### The pattern: one block per section, folded by the builder
-
-Each section of the write-up is a function that takes the problem and a
-context, and adds its own rows:
+Each section of the model is a function that takes the problem and a context, and adds its own rows:
 
 ```python
 ConstraintBlock = Callable[[pulp.LpProblem, ModelContext], None]
@@ -211,13 +199,8 @@ for block in blocks:
     block(problem, ctx)
 ```
 
-In pattern vocabulary this is **Strategy** (each block is an interchangeable
-implementation of "impose a constraint family") composed as a **Composite** (a
-tuple of blocks is itself a formulation) and assembled by a **Builder**
-(`build_problem` owns the construction order and hands back a finished
-problem). `ModelContext` is the **Parameter Object** that keeps the strategy
-signature to two arguments instead of six, and `DispatchVariables` replaces a
-`dict[str, list[LpVariable]]` whose keys every caller had to spell correctly.
+This is a **Strategy** pattern (each block is an interchangeable implementation of "impose a constraint family") composed as a **Composite** (a tuple of blocks is itself a formulation) and assembled by a **Builder** (`build_problem` owns the construction order and hands back a finished
+problem). `ModelContext` is the **Parameter Object** that keeps the strategy signature to two arguments instead of six, and `DispatchVariables` replaces a `dict[str, list[LpVariable]]` whose keys every caller had to spell correctly.
 
 ### Why these, and not the alternatives
 
@@ -225,9 +208,6 @@ signature to two arguments instead of six, and `DispatchVariables` replaces a
 | --- | --- |
 | **Private helpers**, `_add_energy_balance(problem, grid, params, var, state)` | Fixes readability only. Without a context each helper takes five positional arguments, and the set of constraints stays hard-coded, so nothing becomes swappable or separately testable. |
 | **Class per constraint**, `class EnergyBalance(ConstraintBlock)` | A class earns its place when it carries configuration. No block has any: every number a block needs is already in `ModelParameters`, and `cycle_price` belongs to the objective. It would be a hierarchy for one method. |
-| **Visitor over an expression tree** | Would let constraints be rewritten rather than only added, which nothing here needs. PuLP already is the expression layer. |
-| **Registry with a `@constraint("§4.2")` decorator** | Import-order-dependent and implicit. A tuple states the formulation in one place a reviewer can read top to bottom. |
-| **Section metadata on the blocks**, `energy_balance.section = "§4.2"` | Nothing reads it. The citation belongs in the docstring, which is where the rest of the package already puts it, and metadata nothing reads can drift without anything failing. |
 
 ### What it buys
 
@@ -241,41 +221,25 @@ signature to two arguments instead of six, and `DispatchVariables` replaces a
   commitment of §4.5 costs about £19 a week, measured with no new model code to
   write or keep correct. `relaxing(*blocks)` is that omission as a named
   operation, and it is what [§4](#4-two-ways-to-price-the-cycle-budget) builds
-  the Lagrangian relaxation of the cycle budget from. Two caveats, both now in
+  the Lagrangian relaxation of the cycle budget from. Two caveats, both stated in
   the blocks' own docstrings: a constraint that is also a *variable bound* is
-  not relaxed by dropping its row, which is why §4.6's cap is no longer one of
-  those, and §4.3 is one inequality, so dropping it removes the rate caps along
-  with the binary.
+  not relaxed by dropping its row, which is why §4.6's cap is a row alone, and
+  §4.3 is one inequality, so dropping it removes the rate caps along with the
+  binary.
 - **One rule, one place.** `ctx.previous_storage(t)` and
   `ctx.previous_cycles(t)` are the only code that knows period 0 reads the
-  handover while every other period reads *t*-1. That rule was previously
-  repeated in two constraint families.
+  handover while every other period reads *t*-1, rather than each constraint
+  family repeating the rule.
 - **Adding §4.8 is additive.** Write a function, append it to
   `DEFAULT_BLOCKS`. Nothing existing is touched, so nothing existing can break.
 
-### What it costs
-
-Each block owns its own loop over periods, so the model is built in six passes
-rather than one. Measured on the whole 52,608-period horizon of 315,649 rows,
-that is 8.4 s to build against 8.2 s before, about 2%, set against a one-shot
-solve an hour does not prove optimal
-([tractability](model/tractability.md)). The shared loop was what forced
-unrelated sections into one body, so the cost is a fifth of a second and the
-return is the filing principle of §1.
-
-The row names, bounds and the resulting program are unchanged. The refactor was
-checked by holding three things fixed across it: the 289 row names of a
-48-period grid, the 315,649 rows of the full horizon, and the £1,231.12 week-1
-objective.
-
 ---
 
-## 4. Two ways to price the cycle budget
+## 4. How to obtain the lagrangian price: cutting planes and bissection
 
-§4.6's cycle budget is the one constraint that couples distant windows, so it is
-handled by pricing rather than splitting ([cycle budget](cycle-budget.md)).
-Finding the charge is a search, and there is more than one way to run it: the
-bisection this project started with, and Kelley's cutting-plane method on the
+§4.6's cycle budget is the one constraint that couples distant windows, so it is handled by pricing rather than splitting ([cycle budget](cycle-budget.md)).
+Finding the dual value is a search, and there is more than one way to run it: the
+bisection (brute force), and Kelley's cutting-plane method on the
 Lagrangian dual, which costs about half the passes and returns a bound on the
 answer. Both are in the package and both are selectable:
 
@@ -287,17 +251,15 @@ uv run python scripts/compare_pricers.py 30
 
 ### The decision that shaped it: a method owns its subproblem
 
-The obvious design is one function with a `method="bisection" | "cutting-plane"`
-flag. That does not work, because **the two methods do not search the same
+One function with a `method="bisection" | "cutting-plane"`
+flag does not work, because **the two methods do not search the same
 subproblem.**
 
 Bisection reads one bit per pass, *was the budget exhausted?*, and that bit only
 exists when the window **caps** the cumulative count. The cutting-plane
 method reads a value and a subgradient, and those are only meaningful when the
-cap is **removed** and replaced by the charge: a capped pass reports the same
-clipped cycle count at every charge, so its subgradient is zero wherever the
-budget binds, and a method that differentiates stops dead at `λ = 0`. The
-numbers are in [cycle-price-experiments §1](model/cycle-price-experiments.md#1-the-subproblem-had-to-change-first).
+cap is **removed** and replaced by the lagrangian. The
+numbers are in [cycle-price-experiments §1](model/cycle-price-experiments.md#1-what-a-pass-has-to-report).
 
 So "which algorithm" and "which subproblem" are one choice. A method flag would
 have had to reach from the outer search down into model construction, re-coupling
@@ -331,54 +293,12 @@ that an outer search exists.
 | **Registry** | `PRICERS` | One dict turns a CLI string into a method and is the list a reviewer reads. The key *is* the name, with no `name` attribute on the classes, the same decision as the blocks. |
 | **Parameter object** | `CycleOracle`, `DualPoint` | Keeps `price(oracle)` at one argument instead of five, which is what lets the protocol stay small. |
 
-### Considered and rejected
-
-| Alternative | Rejected because |
-| --- | --- |
-| `calibrate_cycle_price(..., method=…)` | The flag would reach into model construction to pick capped or relaxed blocks, re-coupling the search to the formulation. |
-| Subclass `RollingDispatcher` per method | Confuses two axes: the dispatcher answers *how is the horizon walked*, the pricer *at what charge*. Composition keeps them orthogonal. |
-| Template Method, one base class with `next_price()` | The methods share no loop body: one maintains an interval, the other a cut set and an LP, and their termination tests differ in kind. What they share is the oracle rather than the control flow. |
-| Entry-point plugins | Two in-tree methods. A dict is the whole requirement. |
-| A `scipy.optimize`-shaped generic interface | Would hide the one thing worth being explicit about: each method needs its own subproblem, and only one returns a bound. |
-
-### Two fixes this needed, and one that was not made
-
-Before any of it could work, `n_cyc` had to stop being bounded by the budget.
-The cap was *both* a row (`cycle_life_cap`) and the upper bound of every
-`n_cyc(t)` variable, so omitting the block relaxed nothing: the three-day answer
-was identical with and without it. `n_cyc` is now declared free, which
-makes the row the only place the budget is imposed; §4.6 of the write-up records
-the change, and two tests pin it. The default model is unchanged: same 289 rows
-on a 48-period grid, same £1,231.12 on week 1.
-
-The second fix the [proposal](model/cycle-price-experiments.md) called for was
-splitting the aggregate rate caps out of `mode_exclusivity`, because omitting
-that block lifts peak `c1 + c2` to 4 MW against the 2 MW spec. **It was not
-made.** Always-on rate rows would cost two rows per period, taking the horizon
-from 315,649 rows to 420,865, to make safe a relaxation nobody runs. §4.3 of the
-write-up also states the rate limit and the binary coupling as *one* pair of
-inequalities, so a block that is one section is also one concept. The block's
-docstring now says what omitting it means.
-
-### What it does not buy
-
-Profit. On the 30-day instance both methods land within 0.05% of the exact
-answer and bisection's schedule is marginally the better of the two. The residue
-is the decomposition's lookahead truncation, which neither method touches. What
-changes is that one of them *knows* it is within 0.05%. On the headline run
-nothing fires at all: the full 5,000-cycle budget is not binding, so `λ* = 0`
-and both methods stop after one pass. The seam serves the pro-rated budget of
-§5, and the per-year quotas that would need a vector of charges, which bisection
-cannot serve at all.
-
 ---
 
 ## 5. Decisions that repeat across all of them
 
 - **Frozen, slotted dataclasses everywhere.** Nothing in the pipeline mutates a
-  spec, a parameter set or a state. A mutation bug spread across 1,096 windows
-  would be very hard to spot in the output, so the mutation is made impossible
-  to write.
+  spec, a parameter set or a state. 
 - **numpy inside, pandas at the edges.** The grid and the solution are arrays
   and the schedule is a DataFrame, so the hot loop never touches an index while
   the output can still be grouped and plotted.
