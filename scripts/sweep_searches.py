@@ -1,10 +1,10 @@
 """Both pricing methods of §6 over progressively longer horizons.
 
-    uv run python scripts/sweep_pricers.py [days ... | all] [options]
+    uv run python scripts/sweep_searches.py [days ... | all] [options]
 
-    --pricer NAME   only this method (repeatable; default: every method)
+    --search NAME   only this method (repeatable; default: every method)
     --no-exact      skip the one-shot MILP, which has no hope past ~90 days
-    --out NAME      CSV to write under docs/model/ (default cycle-price-sweep.csv)
+    --out NAME      CSV to write under docs/model/ (default cycle-value-sweep.csv)
 
 For each horizon the cycle budget is set to **half** what the horizon spends
 unpriced, so the cap binds hard and the methods have something to disagree
@@ -27,12 +27,12 @@ import pulp
 
 from battery_case.data_io.loaders import load_battery_spec, load_market_prices
 from battery_case.data_io.paths import PROJECT_ROOT
-from battery_case.modelling.grid import build_grid
-from battery_case.modelling.milp import build_problem, default_solver
+from battery_case.modelling.dual_problem import CycleOracle
+from battery_case.modelling.dual_search import SEARCHES
 from battery_case.modelling.parameters import ModelParameters
-from battery_case.modelling.pricers import PRICERS
-from battery_case.modelling.pricing import CycleOracle
-from battery_case.modelling.rolling import PERIODS_PER_DAY, RollingDispatcher
+from battery_case.modelling.periods import build_periods
+from battery_case.modelling.rolling_horizon import PERIODS_PER_DAY, RollingPolicy
+from battery_case.modelling.window_problem import build_problem, default_solver
 
 #: Horizons to sweep, in days — the progression of ``tractability.csv``.
 DEFAULT_DAYS = (1, 2, 4, 7, 14, 30, 60, 90)
@@ -57,16 +57,16 @@ def parse_args(
 ) -> tuple[tuple[int, ...], tuple[str, ...], bool, str]:
     """Days to sweep, methods to run, whether to solve exactly, and the CSV name."""
     days: list[int] = []
-    pricers: list[str] = []
+    searches: list[str] = []
     solve_exactly = True
-    out = "cycle-price-sweep.csv"
+    out = "cycle-value-sweep.csv"
 
     arguments = iter(argv)
     for argument in arguments:
         if argument == "--no-exact":
             solve_exactly = False
-        elif argument == "--pricer":
-            pricers.append(next(arguments))
+        elif argument == "--search":
+            searches.append(next(arguments))
         elif argument == "--out":
             out = next(arguments)
         elif argument == "all":
@@ -74,20 +74,20 @@ def parse_args(
         else:
             days.append(int(argument))
 
-    unknown = [name for name in pricers if name not in PRICERS]
+    unknown = [name for name in searches if name not in SEARCHES]
     if unknown:
-        raise SystemExit(f"unknown pricer(s): {', '.join(unknown)}; have {', '.join(PRICERS)}")
+        raise SystemExit(f"unknown search(s): {', '.join(unknown)}; have {', '.join(SEARCHES)}")
 
     return (
         tuple(days) or DEFAULT_DAYS,
-        tuple(pricers) or tuple(PRICERS),
+        tuple(searches) or tuple(SEARCHES),
         solve_exactly,
         out,
     )
 
 
-whole_grid = build_grid(load_market_prices())
-days_to_sweep, pricers_to_run, solve_exactly, out_name = parse_args(
+whole_grid = build_periods(load_market_prices())
+days_to_sweep, searches_to_run, solve_exactly, out_name = parse_args(
     sys.argv[1:], len(whole_grid) // PERIODS_PER_DAY
 )
 spec = load_battery_spec()
@@ -95,7 +95,7 @@ spec = load_battery_spec()
 fields: list[str] = ["days", "periods", "budget_cycles"]
 if solve_exactly:
     fields += EXACT_FIELDS
-for name in pricers_to_run:
+for name in searches_to_run:
     prefix = PREFIXES[name]
     fields += [
         f"{prefix}_passes",
@@ -105,7 +105,7 @@ for name in pricers_to_run:
         f"{prefix}_bound_gbp",
         f"{prefix}_gap_pct",
     ]
-compares = len(pricers_to_run) > 1
+compares = len(searches_to_run) > 1
 if compares:
     fields.append("profit_delta_pct")
 if solve_exactly:
@@ -114,7 +114,7 @@ if solve_exactly:
 header = f"{'days':>5}{'budget':>9}"
 if solve_exactly:
     header += f"{'exact':>12}"
-for name in pricers_to_run:
+for name in searches_to_run:
     short = name[:3]
     header += (
         f"{short + ' pass':>10}{short + ' λ':>9}{short + ' profit':>13}"
@@ -125,22 +125,22 @@ print("-" * len(header))
 
 rows: list[dict[str, object]] = []
 for days in days_to_sweep:
-    grid = whole_grid.window(0, days * PERIODS_PER_DAY)
+    settlement = whole_grid.window(0, days * PERIODS_PER_DAY)
 
-    unpriced = RollingDispatcher().run_on_grid(grid, ModelParameters.from_spec(spec))
+    unpriced = RollingPolicy().dispatch(settlement, ModelParameters.from_spec(spec))
     budget = 0.5 * float(unpriced["cycles"].iloc[-1])
     params = ModelParameters.from_spec(spec, cycle_budget=budget)
 
     row: dict[str, object] = {
         "days": days,
-        "periods": len(grid),
+        "periods": len(settlement),
         "budget_cycles": round(budget, 4),
     }
     line = f"{days:>5}{budget:>9.2f}"
 
     if solve_exactly:
         started = time.perf_counter()
-        problem, _ = build_problem(grid, params)
+        problem, _ = build_problem(settlement, params)
         stats = problem.solve(default_solver(time_limit=EXACT_TIME_LIMIT))
         objective = pulp.value(problem.objective)
         row["exact_status"] = stats.status.name
@@ -156,10 +156,10 @@ for days in days_to_sweep:
         cell = "—" if exact is None else f"{float(exact):,.2f}"  # type: ignore[arg-type]
         line += f"{cell if row['exact_status'] == 'Optimal' else '~' + cell:>12}"
 
-    for name in pricers_to_run:
+    for name in searches_to_run:
         prefix = PREFIXES[name]
         started = time.perf_counter()
-        result = PRICERS[name].price(CycleOracle(grid=grid, params=params))
+        result = SEARCHES[name].price(CycleOracle(settlement=settlement, params=params))
         seconds = round(time.perf_counter() - started, 1)
         row[f"{prefix}_passes"] = result.passes
         row[f"{prefix}_seconds"] = seconds

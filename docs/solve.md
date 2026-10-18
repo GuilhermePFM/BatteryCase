@@ -4,7 +4,8 @@
 day of foresight suffices.*
 
 [← README](../README.md) · [data](data.md) · [architecture](architecture.md) ·
-[cycle budget](cycle-budget.md) · [validation](validation.md)
+[cycle budget](cycle-budget.md) · [validation](validation.md) ·
+[glossary](glossary.md)
 
 ---
 
@@ -17,12 +18,12 @@ flowchart TD
     L1 --> S["BatterySpec<br/><i>spreadsheet units</i>"]
     L2 --> P["MarketPrices<br/><i>native resolutions</i>"]
     S --> PA["ModelParameters.from_spec<br/><i>§2 · units converted once</i>"]
-    P --> G["build_grid<br/><i>§1, §5 · one half-hourly grid</i>"]
-    PA --> R["RollingDispatcher.run_on_grid<br/><i>§6 · 1,096 windows</i>"]
+    P --> G["build_periods<br/><i>§1, §5 · one half-hourly axis</i>"]
+    PA --> R["RollingPolicy.dispatch<br/><i>§6 · 1,096 windows</i>"]
     G --> R
-    R --> SC["build_schedule<br/><i>§7 · one DataFrame</i>"]
+    R --> SC["build_plan<br/><i>§7 · one DataFrame</i>"]
     SC --> SU["summarise<br/><i>the reported figures</i>"]
-    SC --> OUT["data/results/dispatch_schedule.csv"]
+    SC --> OUT["data/results/dispatch_plan.csv"]
 ```
 
 ## Binary variables issue
@@ -83,24 +84,24 @@ sequenceDiagram
     autonumber
     participant CLI as cli.py
     participant IO as data_io
-    participant G as build_grid
-    participant R as RollingDispatcher
+    participant G as build_periods
+    participant R as RollingPolicy
     participant M as milp / HiGHS
-    participant S as schedule
+    participant S as plan
 
     CLI->>IO: load Attachment 1 + 2
     IO-->>CLI: BatterySpec, MarketPrices
-    CLI->>G: build_grid(prices)
+    CLI->>G: build_periods(prices)
     G-->>CLI: 52,608 half-hourly periods,<br/>relabelled from Market 2, trimmed on whole hours
-    CLI->>R: run_on_grid(grid, ModelParameters.from_spec(spec))
+    CLI->>R: dispatch(settlement, ModelParameters.from_spec(spec))
     loop 1,096 times, one per day
         R->>M: solve 96 periods (48 committed + 48 lookahead)
         M-->>R: WindowSolution
         R->>R: keep first 48, discard the rest,<br/>carry BatteryState (storage, cycles)
     end
-    R->>S: build_schedule(committed slices)
+    R->>S: build_plan(committed slices)
     S-->>CLI: DataFrame + summarise()
-    CLI->>CLI: write data/results/dispatch_schedule.csv
+    CLI->>CLI: write data/results/dispatch_plan.csv
 ```
 
 One HiGHS instance is reused across every window. The full three years takes a

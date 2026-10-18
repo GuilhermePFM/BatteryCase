@@ -4,7 +4,8 @@
 model pairs them.*
 
 [← README](../README.md) · [architecture](architecture.md) · [solve](solve.md) ·
-[cycle budget](cycle-budget.md) · [validation](validation.md)
+[cycle budget](cycle-budget.md) · [validation](validation.md) ·
+[glossary](glossary.md)
 
 ---
 
@@ -38,19 +39,19 @@ checked against the file line by line. Every unit conversion happens once, in
 
 | Market | Resolution | Rows | Note |
 | --- | --- | --: | --- |
-| Market 1 | half-hourly | 52,608 | the settlement grid the model runs on |
-| Market 2 | hourly | 26,304 | written on the half-hourly grid with blank rows on the half hours |
+| Market 1 | half-hourly | 52,608 | the settlement periods the model runs on |
+| Market 2 | hourly | 26,304 | written on the half-hourly axis with blank rows on the half hours |
 
 The blank half-hour rows are dropped on load, so each series keeps its own
 native resolution. The hourly price is repeated across its two half hours later,
-in `build_grid`, where it is a modelling step rather than a loading one.
+in `build_periods`, where it is a modelling step rather than a loading one.
 
 ## The quirks, surfaced and deliberately not repaired
 
 `uv run battery-case inputs` prints a quality report. `price_quality_report`
 counts duplicate timestamps, irregular steps and monotonicity per market, and
 *returns* them. It is not a cleaner: how to treat these periods is a modelling
-decision, so it is made visibly in `modelling/grid.py` rather than invisibly on
+decision, so it is made visibly in `modelling/periods.py` rather than invisibly on
 load.
 
 **1. Market 1 mislabels the spring clock change.** At 2018-03-25, 2019-03-31
@@ -64,14 +65,14 @@ Market 2 labels    …          01:00           02:00           02:30  …   ←
                                                    ↑ the duplicate label
 ```
 
-`build_grid` takes **Market 2's labels as canonical**, which repairs the
+`build_periods` takes **Market 2's labels as canonical**, which repairs the
 artefact without moving any price off the period it was quoted for.
 
 **2. Excel float timestamps.** Market 2's timestamps are stored as floats and
 some land on `00:59:59.999`. The loader rounds them to the minute.
 
 **3. Row order carries meaning.** It is the order the settlement periods occur
-in, and the grid relies on it, so the loader preserves it.
+in, and the half-hourly axis relies on it, so the loader preserves it.
 
 ## Why pairing is positional
 
@@ -83,7 +84,7 @@ For the same reason `MarketPrices.between()` filters with a boolean mask rather
 than `.loc` slicing. Label slicing on a non-monotonic index would raise.
 
 Four tests cover this ground (`test_data_io.py`), plus the relabelling itself in
-`test_grid.py`. See [validation](validation.md).
+`test_periods.py`. See [validation](validation.md).
 
 ## Missing rows fail loudly
 

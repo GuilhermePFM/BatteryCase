@@ -48,7 +48,7 @@ def load_battery_spec(path: Path | str = BATTERY_SPEC_XLSX) -> BatterySpec:
 def load_market_prices(path: Path | str = MARKET_PRICES_XLSX) -> MarketPrices:
     """Read Attachment 2 into a :class:`MarketPrices`.
 
-    The hourly sheet is laid out on the half-hourly grid with blank rows on the
+    The hourly sheet is laid out on the half-hourly settlement with blank rows on the
     half hours; those are dropped so each series keeps its own resolution.
     """
     sheets = pd.read_excel(path, sheet_name=[MARKET_1_SHEET, MARKET_2_SHEET], index_col=0)

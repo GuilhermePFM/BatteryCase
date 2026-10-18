@@ -29,7 +29,7 @@ def test_inputs_command_runs(capsys: pytest.CaptureFixture[str]) -> None:
 def test_dispatch_command_solves_a_short_horizon_and_writes_a_schedule(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    out = tmp_path / "schedule.csv"
+    out = tmp_path / "plan.csv"
     assert (
         main(["dispatch", "--start", "2018-01-01", "--end", "2018-01-02", "--out", str(out)]) == 0
     )
@@ -37,9 +37,9 @@ def test_dispatch_command_solves_a_short_horizon_and_writes_a_schedule(
     printed = capsys.readouterr().out
     assert "profit_gbp" in printed
 
-    schedule = pd.read_csv(out, index_col=0, parse_dates=True)
+    plan = pd.read_csv(out, index_col=0, parse_dates=True)
     # Two whole days of half-hourly periods, and the dates asked for.
-    assert len(schedule) == 96
-    assert schedule.index[0] == pd.Timestamp("2018-01-01 00:00")
-    assert schedule.index[-1] == pd.Timestamp("2018-01-02 23:30")
-    assert schedule["revenue_gbp"].sum() > 0
+    assert len(plan) == 96
+    assert plan.index[0] == pd.Timestamp("2018-01-01 00:00")
+    assert plan.index[-1] == pd.Timestamp("2018-01-02 23:30")
+    assert plan["net_revenue_gbp"].sum() > 0

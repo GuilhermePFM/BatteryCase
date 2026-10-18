@@ -3,7 +3,8 @@
 *What is checked, what the checks pin down, and what a reviewer should still doubt.*
 
 [← README](../README.md) · [data](data.md) · [architecture](architecture.md) ·
-[solve](solve.md) · [cycle budget](cycle-budget.md)
+[solve](solve.md) · [cycle budget](cycle-budget.md) ·
+[glossary](glossary.md)
 
 ---
 
@@ -14,7 +15,7 @@ than by re-asserting its algebra. Re-stating `S(t) = S(t−1) + …` in a test
 proves only that it was typed twice.
 
 `tests/helpers.py::assert_feasible` independently re-derives §4.1 through §4.7
-from any schedule. It runs against synthetic shapes, the clock-change week, and
+from any plan. It runs against synthetic shapes, the clock-change week, and
 the full three-year output.
 
 ```bash
@@ -24,14 +25,14 @@ uv run pytest        # 64 tests, ~10 s. The MILP tests need no spreadsheet,
 
 | File | Tests | Covers |
 | --- | --: | --- |
-| `test_milp.py` | 11 | Each constraint by the behaviour it produces: flat prices stay idle, a 5% spread is declined against the 0.9025 round trip, a dear Market 2 never tempts a simultaneous buy-and-sell, Market 2 holds flat across the hour while Market 1 moves within it, cycles accrue on discharge only, degradation blocks a refill to nominal |
-| `test_rolling.py` | 10 | The handover, the discarded lookahead, one window reproducing the undecomposed solve exactly, and both [cycle-budget](cycle-budget.md) cases, ample and binding |
-| `test_grid.py` | 5 | Hourly prices repeated across their pair, the [mislabelled spring hour](data.md#the-quirks-surfaced-and-deliberately-not-repaired) relabelled without reordering prices, whole-hour slicing, mismatched resolutions rejected |
-| `test_schedule.py` | 5 | Revenue priced on energy *delivered* not drawn, solver noise reported as zero, §4.7 volumes, empty-schedule summary |
+| `test_window_problem.py` | 11 | Each constraint by the behaviour it produces: flat prices stay idle, a 5% spread is declined against the 0.9025 round trip, a dear Market 2 never tempts a simultaneous buy-and-sell, Market 2 holds flat across the hour while Market 1 moves within it, cycles accrue on discharge only, degradation blocks a refill to nominal |
+| `test_rolling_horizon.py` | 10 | The handover, the discarded lookahead, one window reproducing the undecomposed solve exactly, and both [cycle-budget](cycle-budget.md) cases, ample and binding |
+| `test_periods.py` | 5 | Hourly prices repeated across their pair, the [mislabelled spring hour](data.md#the-quirks-surfaced-and-deliberately-not-repaired) relabelled without reordering prices, whole-hour slicing, mismatched resolutions rejected |
+| `test_plan.py` | 5 | Revenue priced on energy *delivered* not drawn, solver noise reported as zero, §4.7 volumes, empty-plan summary |
 | `test_data_io.py` | 4 | The spec against Attachment 1, both series at their native resolutions, the clock-change artefacts flagged |
 | `test_constraints.py` | 13 | Each constraint block against the rows it adds, without a solver: the named rows per period, §4.5 tying only the second half of each hour, the opening state read only in period 0, `DEFAULT_BLOCKS` accounting for every row the assembled model holds, and §4.6's cap imposed as a row with `n_cyc` left free, so that it can be relaxed |
-| `test_pricing.py` | 14 | The two cycle-budget pricers of §6: that a relaxed pass really overspends the budget and a capped one reports no usable slope, that the oracle counts and reuses its passes, the master LP's envelope minimum against cuts whose answer is known on paper, both methods reaching the same schedule, and the dual bound holding above an exactly solved optimum |
-| `test_cli.py` | 2 | Both commands end to end, including the written schedule's dates and length |
+| `test_dual_problem.py` | 14 | The two cycle-budget searches of §6: that a relaxed pass really overspends the budget and a capped one reports no usable slope, that the oracle counts and reuses its passes, the master LP's envelope minimum against cuts whose answer is known on paper, both methods reaching the same plan, and the dual bound holding above an exactly solved optimum |
+| `test_cli.py` | 2 | Both commands end to end, including the written plan's dates and length |
 
 A strict `mypy` pass and `ruff` run alongside.
 
@@ -41,7 +42,7 @@ A strict `mypy` pass and `ruff` run alongside.
 tolerance, so a solver may return a charge variable at 1e-6 MW in a period where
 the battery discharges — enough to fail a §4.3 check on one period out of
 52,608, while being 1.36 µW of physically meaningless noise. The threshold sits
-an order of magnitude above the solver's tolerance so that the saved schedule
+an order of magnitude above the solver's tolerance so that the saved plan
 verifies as it stands, with no post-processing, and a test holds it there.
 Cleaning at that level moves profit by nothing at the penny.
 
@@ -60,14 +61,14 @@ numbers.
   one day of lookahead is a heuristic. The bound held above the proven optimum in
   all eight horizons swept, 1 to 90 days; the full horizon is twelve times the
   longest of them and has no proven optimum to check against.
-  ([the sweep](model/cycle-price-experiments.md#real-prices-horizon-by-horizon) ·
-  [the limits](model/cycle-price-experiments.md#4-limits))
+  ([the sweep](model/cycle-value-experiments.md#real-prices-horizon-by-horizon) ·
+  [the limits](model/cycle-value-experiments.md#4-limits))
 - Foresight is checked on one month, June 2018. A month where the cycle budget
   mattered would test it harder.
   ([the measurement](solve.md#is-one-day-of-foresight-enough))
 
 ---
 
-Figures from `data/results/dispatch_schedule.csv`, reproduced identically
+Figures from `data/results/dispatch_plan.csv`, reproduced identically
 across two independent full-horizon runs. Formulation:
 [`model/model.md`](model/model.md) §1–§7.

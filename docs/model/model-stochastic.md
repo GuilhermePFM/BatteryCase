@@ -30,14 +30,14 @@ the five choices that reduction depends on.
 ## 1. What changes, and what does not
 
 M§1 takes both price series as exogenous **and known**: the whole horizon is
-given before any decision is made, so the schedule is a single sequence chosen
+given before any decision is made, so the plan is a single sequence chosen
 with perfect foresight. The battery remains a price taker here, and the series
 remain exogenous, but they are no longer known. *A volume delivered on day $k$
 must be chosen using only what has been observed up to the end of day $k-1$.*
 
 Two things follow:
 
-- The decision is no longer a schedule but a **policy**: a rule mapping
+- The decision is no longer a plan but a **policy**: a rule mapping
   observed history to a day's plan. On a finite scenario tree a policy is
   represented by one copy of the decision variables per node.
 - The objective is a **functional of a distribution**, here the expectation.
@@ -206,7 +206,7 @@ rest of this document is short.
 What survives of the uncertainty is the tree itself. Two nodes at the same day
 with different histories hold different conditional means and therefore plan
 differently, which is precisely what makes the solution a policy rather than a
-schedule.
+plan.
 
 ## 5. Constraints
 
@@ -290,7 +290,7 @@ attained at the last decision node on its path, the per-node form above and the
 per-scenario form $n_{\text{cyc}}(a(\omega), 48) \leq \overline{L}$ for all
 $\omega \in \mathcal{L}$ define the same feasible set.
 
-A $\lambda$ priced against this cap is its shadow price, with the same
+A $\lambda$ calibrated against this cap is its shadow price, with the same
 interpretation as M§6: one multiplier per node, each the marginal value of a
 cycle on that history.
 
@@ -389,7 +389,7 @@ different seams:
   leaves one copy of `model.md` per scenario, each solvable by the means already
   in use. Progressive hedging and dual decomposition both work this way. Neither
   terminates with a certificate on a mixed-integer program: they return a primal
-  schedule and a dual bound, and the gap between them is the answer's quality
+  plan and a dual bound, and the gap between them is the answer's quality
   rather than a proof of optimality.
 
 ---

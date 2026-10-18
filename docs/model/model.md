@@ -11,7 +11,7 @@ electricity markets over 2018–2020, as a price taker.
 We maximize revenue, a battery buys energy (charges) when prices are low and sells (discharge) when they are high. Two
 wholesale markets are available, quoted in £/MWh and settled at different time
 resolutions, and the battery may split its power between them. The objective is
-to choose a charge/discharge schedule that maximises profit over the horizon.
+to choose a charge/discharge plan that maximises profit over the horizon.
 
 The battery is a **price taker**: its own actions do not move either market's
 prices, so the price series are exogenous inputs. They are also taken as
@@ -20,7 +20,7 @@ prices, so the price series are exogenous inputs. They are also taken as
 second assumption dropped.
 
 The problem is posed as a mixed-integer linear program on a **common half-hourly
-grid**. Market 1 settles natively at that resolution; Market 2 settles hourly,
+axis**. Market 1 settles natively at that resolution; Market 2 settles hourly,
 and is represented by holding its decision variables constant across the two
 half hours of each hour.
 
@@ -233,7 +233,7 @@ cheaper-looking alternative, the cap as the upper bound of every variable at no
 cost in rows, makes the cap impossible to *relax*: §6 prices the budget by
 removing it from the subproblem, and a bound removes nothing. Declaring the
 variable free keeps one row and one place where the budget is imposed, which is
-what the pricing methods need. The variable is bounded regardless, through
+what the search methods need. The variable is bounded regardless, through
 the accumulation above and the rate limits of §4.3.
 
 The equivalence of the two forms rests on monotonicity and on $\overline{L}$
@@ -270,7 +270,7 @@ drop the variable; the write-up keeps it because it names the quantity.
 The brief invites simplification over completeness. Choices made here:
 
 - **Price taker.** Stated in the brief; prices are exogenous.
-- **Prices are known over the whole horizon.** The schedule is chosen with
+- **Prices are known over the whole horizon.** The plan is chosen with
   perfect foresight, which is what makes the result of §7 an upper bound on
   what a policy without foresight could earn rather than a forecast of revenue. The
   stochastic formulation is in
@@ -292,7 +292,7 @@ The brief invites simplification over completeness. Choices made here:
   "value the asset over its life"; the former is what the brief asks for.
 - **Capex and opex do not enter the objective.** £500,000 capex and £5,000/year
   fixed opex are fixed with respect to the dispatch decision, so they do not
-  change the optimal schedule; they belong to a separate economic assessment of
+  change the optimal plan; they belong to a separate economic assessment of
   the asset.
 
 ## 6. Solution approach
@@ -312,7 +312,7 @@ around 3 s and a fortnight anywhere from 5 s to 17 s depending on which
 fortnight it is. The cliff sits between 30 and 60 days: a month solves to
 proven optimality in 30 s, two months could not be proved in 900 s. Posed whole,
 the program is 315,649 rows, 368,256 columns and 52,608 binaries; given an hour,
-HiGHS never left the root node, returning a feasible schedule worth
+HiGHS never left the root node, returning a feasible plan worth
 £204,077.77 against a dual bound of £208,209.57, a 2.02% gap and £3,287 worse
 than the decomposition reaches in minutes. The full measurements are in
 [`tractability.md`](tractability.md).
@@ -361,14 +361,14 @@ Two couplings reach beyond a single window:
   window cannot see what a later one would have done with a cycle, so a binding
   budget is consumed by the earliest days that can use it.
 
-The second is handled by pricing the budget rather than splitting it: a
+The second is handled by valuing the budget rather than splitting it: a
 Lagrangian relaxation of the one constraint that couples distant windows.
 
 ### Lagrangian relaxation of the cycle budget
 
 Relax $n_{\text{cyc}}(T) \leq \overline{L}$ into the objective with a
 multiplier $\lambda \geq 0$. Writing $R(t)$ for the revenue of §3 and
-$\mathcal{X}$ for the schedules satisfying all of §4 *except* the cap,
+$\mathcal{X}$ for the plans satisfying all of §4 *except* the cap,
 
 $$
 L(\lambda) \;=\; \max_{x \in \mathcal{X}} \;\Bigl[ \sum_{t \in \mathcal{T}} R(t) \;-\; \lambda \bigl( n_{\text{cyc}}(T) - \overline{L} \bigr) \Bigr]
@@ -379,8 +379,9 @@ sum over windows of what each window spends, the bracket is **separable**: for
 a fixed $\lambda$ each window can be solved alone, needing to know nothing about
 the rest of the horizon except the price. A global constraint has been traded
 for a per-window charge, which is what the decomposition needs.
-Implemented, the charge is the $-\lambda\,(n_{\text{cyc}}(T) - n^0_{\text{cyc}})$
-term already written into the objective of each window.
+Implemented, that charge is the $-\lambda\,(n_{\text{cyc}}(T) - n^0_{\text{cyc}})$
+term already written into the objective of each window, at the cycle value
+$\lambda$.
 
 The algorithm rests on three standard properties:
 
@@ -465,10 +466,10 @@ The loop therefore terminates on a measured gap, $\min_i L(\lambda_i) -
 exit is a statement about the quality of the answer, not of the price alone.
 
 Two further elements are needed to make it an algorithm that returns a
-schedule:
+plan:
 
 - **Primal recovery.** A relaxed pass may overspend the budget, and an
-  infeasible schedule is not an answer. One final pass *with* the cap, priced
+  infeasible plan is not an answer. One final pass *with* the cap, charged
   at the $\lambda^\star$ the dual settled on, produces the deliverable.
 - **Stabilisation, for a vector $\lambda$.** Kelley's iterates can oscillate,
   the classical remedy being a proximal or trust-region term, as in a bundle
@@ -484,21 +485,21 @@ schedule:
 One caution belongs with the theory rather than with any measurement: the
 Lagrangian relaxation of a *mixed-integer* program generally leaves a duality
 gap, so $\min_\lambda L(\lambda)$ may exceed $P^\star$ strictly. The method
-remains correct, returning a schedule and a valid bracket, but the bracket does
+remains correct, returning a plan and a valid bracket, but the bracket does
 not close. Weak duality also requires each evaluation to be a true maximum of
 the relaxed problem, which a rolling pass with finite lookahead only
 approximates, so a bound quoted from decomposed evaluations is sound only as far
 as that approximation holds.
 
 Both methods are implemented and both are selectable with
-`battery-case dispatch --cycle-pricer {cutting-plane,bisection}`, cutting planes
+`battery-case dispatch --search {cutting-plane,bisection}`, cutting planes
 being the default: it costs fewer passes and returns the bound above. They share
 one evaluation oracle and differ in the subproblem they ask it for: bisection
 reads one bit from a *capped* pass, the cutting-plane method a value and a
 subgradient from a *relaxed* one. The reason a capped pass admits no usable subgradient, the
 measured comparison of the two against exactly solved instances, and the
 validation of the bound are in
-[`cycle-price-experiments.md`](cycle-price-experiments.md); the architecture
+[`cycle-value-experiments.md`](cycle-value-experiments.md); the architecture
 of the seam is in
 [`architecture.md`](../architecture.md#4-how-to-obtain-the-lagrangian-price-cutting-planes-and-bissection).
 

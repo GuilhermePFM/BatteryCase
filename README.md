@@ -25,7 +25,7 @@ section in `docs/model/model.md`, and every number quoted in the documents comes
 | Section | What it covers |
 | --- | --- |
 | [The problem in one picture](#the-problem-in-one-picture) | The two markets, the battery, the wear, and the three consequences that shape the model |
-| [Running it](#running-it) | Install with uv, the two commands, every flag, the pricer scripts, the dev loop |
+| [Running it](#running-it) | Install with uv, the two commands, every flag, the search scripts, the dev loop |
 | [Where to read what](#where-to-read-what) | The documents, in reading order, with what each one answers |
 | [Layout](#layout) | What lives in each directory |
 
@@ -58,7 +58,7 @@ Three consequences shape the rest:
   decision variables rather than on the prices, because that is what committing
   capacity to an hourly product means.
 
-The result is a MILP on a common half-hourly grid, solved a window(e.g. day) at a time with another window (e.g. day) of foresight. 52,608 periods each carrying a binary is not one tractable
+The result is a MILP on a common half-hourly axis, solved a window(e.g. day) at a time with another window (e.g. day) of foresight. 52,608 periods each carrying a binary is not one tractable
 program.
 
 ## Running it
@@ -73,7 +73,7 @@ uv run battery-case inputs      # load both spreadsheets, print spec + data qual
 uv run battery-case dispatch    # solve all three years (a few minutes)
 ```
 
-`dispatch` writes the half-hourly schedule to `data/results/` and prints the headline figures. Restrict it for a quick look:
+`dispatch` writes the half-hourly plan to `data/results/` and prints the headline figures. Restrict it for a quick look:
 
 ```bash
 uv run battery-case dispatch --start 2018-01-01 --end 2018-01-31
@@ -84,15 +84,15 @@ uv run battery-case dispatch --start 2018-01-01 --end 2018-01-31
 | `--start` / `--end` | all data | Horizon, trimmed on whole hours |
 | `--commit-days` | `1` | How much of each solved window is kept |
 | `--lookahead-days` | `1` | Foresight beyond the committed part, then discarded |
-| `--cycle-price` | `0.0` | £ charged per equivalent full cycle used |
-| `--cycle-pricer` | none | Search for that charge instead (§6). Bare, or `cutting-plane`, uses cutting planes; `bisection` selects the reference method |
-| `--out` | `data/results/dispatch_schedule.csv` | `.csv` or `.parquet` |
+| `--cycle-value` | `0.0` | £ charged per equivalent full cycle used |
+| `--search` | none | Search for that charge instead (§6). Bare, or `cutting-plane`, uses cutting planes; `bisection` selects the reference method |
+| `--out` | `data/results/dispatch_plan.csv` | `.csv` or `.parquet` |
 
-The cycle budget only needs a charge when it binds, and on the full 5,000-cycle budget it does not, so `--cycle-pricer` costs one pass and returns zero. It matters under the pro-rated budget of §5. Compare the two methods on one instance with:
+The cycle budget only needs a cycle value when it binds, and on the full 5,000-cycle budget it does not, so `--search` costs one pass and returns zero. It matters under the pro-rated budget of §5. Compare the two methods on one instance with:
 
 ```bash
-uv run python scripts/compare_pricers.py 30    # one instance, against an exact solve
-uv run python scripts/sweep_pricers.py         # 1 to 90 days, both methods side by side
+uv run python scripts/compare_searches.py 30    # one instance, against an exact solve
+uv run python scripts/sweep_searches.py         # 1 to 90 days, both methods side by side
 ```
 
 Development:
@@ -117,10 +117,12 @@ flowchart TD
     C["<b>docs/cycle-budget.md</b><br/>the one constraint decomposition can get wrong<br/>the λ that fixes it, and the cutting planes<br/>that find it"]
     B["<b>docs/bisection.md</b><br/>the comparison method for that λ"]
     RE["<b>docs/model/results.md</b><br/>the figures for 2018–2020,<br/>and how to read them"]
-    X["<b>docs/model/cycle-price-experiments.md</b><br/>bisection vs cutting planes, measured<br/>against an exact solve"]
+    X["<b>docs/model/cycle-value-experiments.md</b><br/>bisection vs cutting planes, measured<br/>against an exact solve"]
     ST["<b>docs/model/model-stochastic.md</b><br/>the same model with stochastic prices<br/>formulation only"]
     V["<b>docs/validation.md</b><br/>what is checked, what was found, what is open"]
+    G["<b>docs/glossary.md</b><br/>every term, the one word chosen for it,<br/>and the words deliberately not used"]
 
+    R --> G
     R --> M
     R --> D --> A --> S --> C --> V
     M --> RE
@@ -136,12 +138,13 @@ flowchart TD
 | [`docs/model/results.md`](docs/model/results.md) | §7: profit, energy, cycles and degradation over 2018–2020, year by year, with the reading of them. |
 | [`docs/model/model-stochastic.md`](docs/model/model-stochastic.md) | The multistage stochastic extension: scenario tree, non-anticipativity, the cycle cap under uncertainty, mean-CVaR. Formulation only, nothing implemented. |
 | [`docs/data.md`](docs/data.md) | What the two spreadsheets contain, the clock-change artefacts, and why the loader reports rather than repairs. |
-| [`docs/architecture.md`](docs/architecture.md) | How the code is structured, every class with the reason it exists, why the constraints are separate blocks, and how two pricing algorithms share one seam. |
+| [`docs/architecture.md`](docs/architecture.md) | How the code is structured, every class with the reason it exists, why the constraints are separate blocks, and how two search algorithms share one seam. |
 | [`docs/solve.md`](docs/solve.md) | Why the horizon is decomposed, what one window does, and the evidence that a day of foresight suffices. |
-| [`docs/cycle-budget.md`](docs/cycle-budget.md) | The global cycle cap, the misallocation decomposition causes, pricing cycles instead of splitting them, and how λ is found by the default method: Kelley's cutting planes. |
+| [`docs/cycle-budget.md`](docs/cycle-budget.md) | The global cycle cap, the misallocation decomposition causes, valuing cycles instead of splitting them, and how λ is found by the default method: Kelley's cutting planes. |
 | [`docs/bisection.md`](docs/bisection.md) | The second method for the same λ, kept for comparison: what a bisection on cycle use searches for, what it costs, and what it cannot certify. |
-| [`docs/model/cycle-price-experiments.md`](docs/model/cycle-price-experiments.md) | Why a capped pass has no usable gradient, and both pricing methods measured against exactly solved instances: passes, λ, profit and the dual bound. |
+| [`docs/model/cycle-value-experiments.md`](docs/model/cycle-value-experiments.md) | Why a capped pass has no usable gradient, and both search methods measured against exactly solved instances: passes, λ, profit and the dual bound. |
 | [`docs/model/tractability.md`](docs/model/tractability.md) | Solve time against window length, and the whole horizon as one MILP: the measurements behind decomposing it. |
+| [`docs/glossary.md`](docs/glossary.md) | Every term the model, the code and the write-up use, the one word chosen for each idea, and the renames that choice implied. |
 | [`docs/validation.md`](docs/validation.md) | The 64 tests, what checking found that thinking had not, and the questions still open. |
 
 ## Layout
@@ -159,5 +162,5 @@ Makefile            render targets for the model document
 
 ---
 
-Figures come from `data/results/dispatch_schedule.csv`, reproduced identically
+Figures come from `data/results/dispatch_plan.csv`, reproduced identically
 across two independent full-horizon runs.

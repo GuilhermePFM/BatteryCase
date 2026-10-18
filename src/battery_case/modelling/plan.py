@@ -1,6 +1,6 @@
-"""The dispatch schedule and the figures read off it.
+"""The dispatch plan and the figures read off it.
 
-The schedule is the model's output: one row per half-hourly period, holding the
+The plan is the model's output: one row per half-hourly period, holding the
 decisions of §2 and the revenue of §3. Every quantity a result quotes is
 recomputed from these columns, so the write-up and the code cannot drift.
 
@@ -15,8 +15,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from battery_case.modelling.grid import DispatchGrid
 from battery_case.modelling.parameters import ModelParameters
+from battery_case.modelling.periods import SettlementPeriods
 
 #: Power below this is the solver's zero, not a decision to trade (MW).
 #:
@@ -26,7 +26,7 @@ from battery_case.modelling.parameters import ModelParameters
 #: charging and discharging in the same period, which §4.3 forbids.
 _TOLERANCE = 1e-5
 
-#: Columns of a dispatch schedule, in order.
+#: Columns of a dispatch plan, in order.
 COLUMNS = (
     "price_1",
     "price_2",
@@ -35,16 +35,16 @@ COLUMNS = (
     "discharge_1_mw",
     "discharge_2_mw",
     "storage_mwh",
-    "storage_max_mwh",
+    "effective_volume_mwh",
     "cycles",
-    "revenue_1_gbp",
-    "revenue_2_gbp",
-    "revenue_gbp",
+    "net_revenue_1_gbp",
+    "net_revenue_2_gbp",
+    "net_revenue_gbp",
 )
 
 
-def build_schedule(
-    grid: DispatchGrid,
+def build_plan(
+    settlement: SettlementPeriods,
     params: ModelParameters,
     *,
     charge_1_mw: np.ndarray,
@@ -54,32 +54,32 @@ def build_schedule(
     storage_mwh: np.ndarray,
     cycles: np.ndarray,
 ) -> pd.DataFrame:
-    """Assemble the schedule frame from the solved decision arrays."""
+    """Assemble the plan frame from the solved decision arrays."""
     charge_1_mw = _clean(charge_1_mw)
     charge_2_mw = _clean(charge_2_mw)
     discharge_1_mw = _clean(discharge_1_mw)
     discharge_2_mw = _clean(discharge_2_mw)
     storage_mwh = _clean(storage_mwh)
     delivered = 1.0 - params.discharge_loss
-    revenue_1 = params.dt * grid.price_1 * (delivered * discharge_1_mw - charge_1_mw)
-    revenue_2 = params.dt * grid.price_2 * (delivered * discharge_2_mw - charge_2_mw)
+    revenue_1 = params.dt * settlement.price_1 * (delivered * discharge_1_mw - charge_1_mw)
+    revenue_2 = params.dt * settlement.price_2 * (delivered * discharge_2_mw - charge_2_mw)
 
     frame = pd.DataFrame(
         {
-            "price_1": grid.price_1,
-            "price_2": grid.price_2,
+            "price_1": settlement.price_1,
+            "price_2": settlement.price_2,
             "charge_1_mw": charge_1_mw,
             "charge_2_mw": charge_2_mw,
             "discharge_1_mw": discharge_1_mw,
             "discharge_2_mw": discharge_2_mw,
             "storage_mwh": storage_mwh,
-            "storage_max_mwh": effective_volume(params, cycles),
+            "effective_volume_mwh": effective_volume(params, cycles),
             "cycles": cycles,
-            "revenue_1_gbp": revenue_1,
-            "revenue_2_gbp": revenue_2,
-            "revenue_gbp": revenue_1 + revenue_2,
+            "net_revenue_1_gbp": revenue_1,
+            "net_revenue_2_gbp": revenue_2,
+            "net_revenue_gbp": revenue_1 + revenue_2,
         },
-        index=grid.timestamps,
+        index=settlement.timestamps,
     )
     return frame[list(COLUMNS)]
 
@@ -94,49 +94,45 @@ def effective_volume(params: ModelParameters, cycles: np.ndarray) -> np.ndarray:
     return params.nominal_volume_mwh * (1.0 - params.degradation_per_cycle * cycles)
 
 
-def summarise(schedule: pd.DataFrame, params: ModelParameters) -> pd.Series:
-    """Headline figures for a schedule (§7).
+def summarise(plan: pd.DataFrame, params: ModelParameters) -> pd.Series:
+    """Headline figures for a plan (§7).
 
     Profit is the objective of §3 summed over the horizon. Capex and fixed opex
     are excluded, per §5: they do not depend on the dispatch decision.
     """
-    charged = schedule["charge_1_mw"] + schedule["charge_2_mw"]
-    discharged = schedule["discharge_1_mw"] + schedule["discharge_2_mw"]
+    charged = plan["charge_1_mw"] + plan["charge_2_mw"]
+    discharged = plan["discharge_1_mw"] + plan["discharge_2_mw"]
     delivered = 1.0 - params.discharge_loss
 
     bought_mwh = float(params.dt * charged.sum())
     delivered_mwh = float(params.dt * delivered * discharged.sum())
     cost_gbp = float(
         params.dt
-        * (
-            schedule["price_1"] * schedule["charge_1_mw"]
-            + schedule["price_2"] * schedule["charge_2_mw"]
-        ).sum()
+        * (plan["price_1"] * plan["charge_1_mw"] + plan["price_2"] * plan["charge_2_mw"]).sum()
     )
     income_gbp = float(
         params.dt
         * delivered
         * (
-            schedule["price_1"] * schedule["discharge_1_mw"]
-            + schedule["price_2"] * schedule["discharge_2_mw"]
+            plan["price_1"] * plan["discharge_1_mw"] + plan["price_2"] * plan["discharge_2_mw"]
         ).sum()
     )
 
     return pd.Series(
         {
-            "profit_gbp": float(schedule["revenue_gbp"].sum()),
-            "revenue_market_1_gbp": float(schedule["revenue_1_gbp"].sum()),
-            "revenue_market_2_gbp": float(schedule["revenue_2_gbp"].sum()),
+            "profit_gbp": float(plan["net_revenue_gbp"].sum()),
+            "net_revenue_market_1_gbp": float(plan["net_revenue_1_gbp"].sum()),
+            "net_revenue_market_2_gbp": float(plan["net_revenue_2_gbp"].sum()),
             "income_gbp": income_gbp,
             "cost_gbp": cost_gbp,
             "energy_bought_mwh": bought_mwh,
             "energy_delivered_mwh": delivered_mwh,
             "mean_buy_price_gbp_per_mwh": _per_mwh(cost_gbp, bought_mwh),
             "mean_sell_price_gbp_per_mwh": _per_mwh(income_gbp, delivered_mwh),
-            "cycles_used": float(schedule["cycles"].iloc[-1]),
+            "cycles_used": float(plan["cycles"].iloc[-1]),
             "cycle_budget": params.cycle_budget,
-            "final_volume_mwh": float(schedule["storage_max_mwh"].iloc[-1]),
-            "periods": len(schedule),
+            "final_volume_mwh": float(plan["effective_volume_mwh"].iloc[-1]),
+            "periods": len(plan),
             "periods_charging": int((charged > _TOLERANCE).sum()),
             "periods_discharging": int((discharged > _TOLERANCE).sum()),
         }

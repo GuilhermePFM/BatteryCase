@@ -8,24 +8,27 @@ import time
 import pulp
 
 from battery_case.data_io.loaders import load_battery_spec, load_market_prices
-from battery_case.modelling.grid import build_grid
-from battery_case.modelling.milp import build_problem
 from battery_case.modelling.parameters import ModelParameters
+from battery_case.modelling.periods import build_periods
+from battery_case.modelling.window_problem import build_problem
 
 days = int(sys.argv[1]) if len(sys.argv) > 1 else 0  # 0 = whole horizon
 time_limit = float(sys.argv[2]) if len(sys.argv) > 2 else 3600.0
 
 spec = load_battery_spec()
 prices = load_market_prices()
-grid = build_grid(prices)
+settlement = build_periods(prices)
 if days:
-    grid = grid.window(0, days * 48)
+    settlement = settlement.window(0, days * 48)
 params = ModelParameters.from_spec(spec)
 
-print(f"periods={len(grid)} days={len(grid) / 48:.0f} time_limit={time_limit:.0f}s", flush=True)
+print(
+    f"periods={len(settlement)} days={len(settlement) / 48:.0f} time_limit={time_limit:.0f}s",
+    flush=True,
+)
 
 t0 = time.perf_counter()
-problem, variables = build_problem(grid, params)
+problem, variables = build_problem(settlement, params)
 build_seconds = time.perf_counter() - t0
 print(f"build_seconds={build_seconds:.1f}", flush=True)
 

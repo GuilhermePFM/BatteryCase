@@ -8,12 +8,12 @@ below are invented to make that shape legible — a convex piecewise-linear $L$,
 two evaluations far enough apart that their cuts cross well below the curve —
 so the axes carry no numbers. Only the structure is claimed.
 
-Each piece is the Lagrangian value of one schedule $x$, affine in $\\lambda$:
+Each piece is the Lagrangian value of one plan $x$, affine in $\\lambda$:
 
     profit(x) + lambda * (cycle_budget - cycles(x))
 
 so a piece's slope is the subgradient the evaluation returns, negative while
-the relaxed schedule overspends the budget and positive once it underspends.
+the relaxed plan overspends the budget and positive once it underspends.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ INK = "#0b0b0b"
 MUTED = "#52514e"
 SURFACE = "#fcfcfb"
 
-# (intercept, slope) per schedule; the slope is the subgradient at that piece.
+# (intercept, slope) per plan; the slope is the subgradient at that piece.
 PIECES = [
     (220_000.0, -1943.0),
     (200_000.0, -500.0),

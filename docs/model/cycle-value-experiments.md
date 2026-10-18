@@ -1,4 +1,4 @@
-# Pricing the cycle budget: two methods, measured
+# Valuing the cycle budget: two methods, measured
 
 *What the two methods need from the subproblem, and what each of them costs.*
 
@@ -7,21 +7,21 @@
 
 ---
 
-§6 of the [write-up](model.md) describes two ways to find the charge `λ`
+§6 of the [write-up](model.md) describes two ways to find the cycle value `λ`
 that rations a binding cycle budget: a bisection on cycle use, and Kelley's
 cutting-plane method on the Lagrangian dual. Both are implemented
 ([architecture §4](../architecture.md#4-how-to-obtain-the-lagrangian-price-cutting-planes-and-bissection)) and
 both are selectable:
 
 ```bash
-uv run battery-case dispatch --cycle-pricer                 # cutting planes, the default
-uv run battery-case dispatch --cycle-pricer bisection      # the reference method
-uv run python scripts/compare_pricers.py 30        # every method on one instance
-uv run python scripts/sweep_pricers.py            # every method, 1 to 90 days
-uv run python scripts/sweep_pricers.py 365 all --pricer cutting-plane --no-exact
+uv run battery-case dispatch --search                 # cutting planes, the default
+uv run battery-case dispatch --search bisection      # the reference method
+uv run python scripts/compare_searches.py 30        # every method on one instance
+uv run python scripts/sweep_searches.py            # every method, 1 to 90 days
+uv run python scripts/sweep_searches.py 365 all --search cutting-plane --no-exact
 ```
 
-Everything below is measured by that script and by `tests/test_pricing.py`. One
+Everything below is measured by that script and by `tests/test_dual_problem.py`. One
 *pass* means one full rolling run over the instance: 1,096 window MILPs on the
 three-year horizon, measured at about 77 seconds
 ([§2](#the-whole-horizon-with-no-truth-to-check-against)). The pass count is
@@ -29,14 +29,14 @@ what a method costs.
 
 ## 1. What a pass has to report
 
-To price a constraint you must **remove** it from the subproblem: the charge
+To value a constraint you must **remove** it from the subproblem: the cycle value
 replaces the constraint, it does not accompany it. A window that caps the
 cumulative cycle count *and* charges `λ` for it clips cycle use at the budget by
 construction, so the only thing such a pass can report is whether the clip was
 reached. That single bit is all bisection needs; it is not enough for a
 cutting-plane method, which needs a value and a slope.
 
-Measured on the three-day instance of `tests/test_pricing.py` (two modest days,
+Measured on the three-day instance of `tests/test_dual_problem.py` (two modest days,
 then a dear one, one cycle of budget), the same `λ` through both subproblems:
 
 | λ (£/cycle) | capped: cycles | profit | subgradient | relaxed: cycles | profit | subgradient |
@@ -53,7 +53,7 @@ in the signal, not in bisection, which asks only for the one bit a capped pass
 can give.
 
 The relaxed column is a usable derivative. At `λ = 0` the horizon wants three
-cycles against a budget of one, so the subgradient is −2: the charge is too low,
+cycles against a budget of one, so the subgradient is −2: the cycle value is too low,
 by a lot. At `λ = 300` cycle use is exactly 1.0 and the subgradient is 0, which
 is the optimality condition. £300 is therefore the shadow price, where the
 bisection's £1,435.55 is the top of a plateau
@@ -68,12 +68,12 @@ bisection's £1,435.55 is the top of a plateau
 > bound doing the work the row is supposed to do, and the relaxed column above
 > would be identical to the capped one. So `n_cyc` is declared free, making
 > `blocks` a real relaxation lever. `tests/test_constraints.py` pins the free
-> bound, and `tests/test_pricing.py` pins that a relaxed pass overspends.
+> bound, and `tests/test_dual_problem.py` pins that a relaxed pass overspends.
 
 ## 2. What each method costs, against a known answer
 
-Each instance is priced against a budget of **half** what the horizon spends
-unpriced, so the cap binds hard. Every instance here is also solved whole, as one
+Each instance is calibrated against a budget of **half** what the horizon spends
+at zero cycle value, so the cap binds hard. Every instance here is also solved whole, as one
 capped MILP, which gives the comparison a ground truth the decomposition cannot
 provide for itself — and lets the question "does the cutting-plane method
 reproduce the bisection?" be asked against the right answer rather than against
@@ -89,11 +89,12 @@ the other method.
 
 ### Real prices, horizon by horizon
 
-The progression of [`tractability.csv`](tractability.csv), each horizon priced
-against half of what it spends unpriced, both methods on the same instance, and
+The progression of [`tractability.csv`](tractability.csv), each horizon
+calibrated against half of what it spends at zero cycle value, both methods on
+the same instance, and
 the capped program solved whole for a ground truth. Raw numbers in
-[`cycle-price-sweep.csv`](cycle-price-sweep.csv), from
-[`scripts/sweep_pricers.py`](../../scripts/sweep_pricers.py):
+[`cycle-value-sweep.csv`](cycle-value-sweep.csv), from
+[`scripts/sweep_searches.py`](../../scripts/sweep_searches.py):
 
 | Days | Budget | Exact profit | Bis passes | Bis λ | Bis profit | Cut passes | Cut λ | Cut profit | Cut bound | Cut gap | Cut − bis |
 | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
@@ -109,8 +110,8 @@ the capped program solved whole for a ground truth. Raw numbers in
 **Cutting planes reproduces the bisection, and the agreement improves with the
 horizon.** The one-day instance is its worst showing at −1.03%: with 48 periods
 there is almost nothing to ration, so landing a few pence away in λ moves a
-whole trade. From four days on the two schedules differ by less than a
-tenth of a percent, and twice — at 4 and 14 days — they are the same schedule to
+whole trade. From four days on the two plans differ by less than a
+tenth of a percent, and twice — at 4 and 14 days — they are the same plan to
 the penny. The charges agree throughout: £11.28 against £11.33 at one day,
 £36.77 against £36.17 at ninety.
 
@@ -132,17 +133,17 @@ mean of 8.4 across the sweep — and lower wall clock in every row: 35.6 s again
 > And every row here has a proven exact answer, including 60 and 90 days, which
 > [`tractability.md`](tractability.md) could not prove in 900 s — not a
 > contradiction but a different instance: a cycle budget *halved* against
-> unpriced use is itself a strong constraint, and it prunes the search that the
+> use at zero cycle value is itself a strong constraint, and it prunes the search that the
 > unconstrained 60-day window leaves open.
 
 ### The whole horizon, with no truth to check against
 
 The sweep above stops at 90 days because that is as far as a one-shot MILP will
 go, and the exact column is what gives those rows their value. Cutting planes on
-its own goes the rest of the way, each horizon still priced against half of what
-it spends unpriced. Raw numbers in
-[`cycle-price-long-horizons.csv`](cycle-price-long-horizons.csv), from
-`scripts/sweep_pricers.py 180 365 all --pricer cutting-plane --no-exact`:
+its own goes the rest of the way, each horizon still calibrated against half of what
+it spends at zero cycle value. Raw numbers in
+[`cycle-value-long-horizons.csv`](cycle-value-long-horizons.csv), from
+`scripts/sweep_searches.py 180 365 all --search cutting-plane --no-exact`:
 
 | Days | Periods | Budget | Passes | λ | Profit | Bound | Dual gap | Bound − profit | Wall clock | Per pass |
 | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
@@ -161,18 +162,18 @@ end, ten passes. Per window MILP that is 0.070 s over three years against
 in the horizon, with the full run half again as dear per window. That last part
 is measured, not explained.
 
-**The dual converges; the deliverable schedule drifts.** The gap column holds at
+**The dual converges; the deliverable plan drifts.** The gap column holds at
 0.003–0.007%, which is the master LP closing on λ, and it is not the interesting
-column here. The distance from the bound to the *feasible* schedule is: 0.10% at
+column here. The distance from the bound to the *feasible* plan is: 0.10% at
 90 days, 0.26% at 180, 0.44% at 365, 1.73% over three years — £3,231 between
 £184,008.73 and £187,240.16. Whether that is the recovery pass giving up profit
 or the bound being loose cannot be separated without a proven optimum, and none
 exists at this size. The honest statement is the weaker one the certificate
-actually supports: on the three-year instance this schedule is within 1.73% of
+actually supports: on the three-year instance this plan is within 1.73% of
 anything the relaxation admits.
 
 > [!NOTE]
-> This is still not the headline instance. The budget here is half of unpriced
+> This is still not the headline instance. The budget here is half of at zero cycle value
 > use, 1,721 cycles over three years, which is why λ is £30.17. Under §5's
 > 5,000-cycle budget the cap does not bind at all and both methods stop after a
 > single pass.
@@ -189,7 +190,7 @@ gap, so the tolerance buys the passes. On the 30-day instance:
 | 1e-4 | 7 | £28.85 | £4,935.43 | £4,938.18 | 0.004% |
 | 1e-5 | 10 | £28.85 | £4,935.43 | £4,938.18 | 0.001% |
 
-Five passes is too loose to quote: the gap is half a percent and the schedule
+Five passes is too loose to quote: the gap is half a percent and the plan
 has given up 1.6% of profit. Seven is tight enough for any purpose here, and the
 default `1e-4` lands there. The quoted figures move by pennies between runs,
 because every pass is a MILP solved to a feasibility tolerance and a different
@@ -199,12 +200,12 @@ tie broken in one window shifts the last decimal of the dual.
 
 None of the three reasons is profit:
 
-1. **It reports quality.** Bisection returns a price and a schedule with no
-   statement about either. `PricingResult.bound` is `None` for it, by type, so
+1. **It reports quality.** Bisection returns a price and a plan with no
+   statement about either. `DualSearchResult.bound` is `None` for it, by type, so
    nothing downstream can quote a certificate it never computed.
 2. **Its λ is interpretable.** £28.85 is the budget's shadow price, the marginal
    value of the last cycle. The bisection's answer is the top of a plateau,
-   which yields the same schedule but is not a price to quote.
+   which yields the same plan but is not a price to quote.
 3. **It generalises to a vector.** §4.6 notes that a time-varying allowance
    `L̄(t)`, such as a per-year quota, is the case where the per-period and
    end-of-horizon forms of the cap stop being equivalent. That needs one
@@ -229,9 +230,9 @@ None of the three reasons is profit:
   being a true maximum rather than on evidence.
 - **Neither method fires on the headline run.** With the full 5,000-cycle budget
   of §5 the horizon spends 3,443, so the cap does not bind, `λ* = 0`, and both
-  methods stop after a single pass, which `tests/test_pricing.py` asserts. All of
+  methods stop after a single pass, which `tests/test_dual_problem.py` asserts. All of
   this serves the pro-rated 1,500-cycle reading, and quotas.
-- **The three-year priced run has no ground truth.** It is measured — 10
+- **The three-year calibrated run has no ground truth.** It is measured — 10
   passes, 12 min 49 s, λ = £30.17 — but the exact MILP that validated the bound
   at 30 days cannot be built at this size, so nothing independent confirms the
   £184,008.73. The bound is what stands in for it, and it is 1.73% away.

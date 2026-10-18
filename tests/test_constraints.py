@@ -2,7 +2,7 @@
 
 These tests never call a solver: a block's job is to put named rows on the
 problem, and that is what is asserted here. The solved behaviour each block
-produces is covered in ``test_milp.py``.
+produces is covered in ``test_window_problem.py``.
 """
 
 from __future__ import annotations
@@ -19,16 +19,16 @@ from battery_case.modelling.constraints import (
     ModelContext,
     cycle_accounting,
     cycle_life_cap,
-    effective_volume,
     energy_balance,
     hourly_commitment,
     mode_exclusivity,
     profit_objective,
+    volume_limit,
 )
-from battery_case.modelling.grid import DispatchGrid
-from battery_case.modelling.milp import build_problem
 from battery_case.modelling.parameters import ModelParameters
-from tests.helpers import SPEC, make_grid
+from battery_case.modelling.periods import SettlementPeriods
+from battery_case.modelling.window_problem import build_problem
+from tests.helpers import SPEC, make_periods
 
 #: Four hours of half-hourly periods — long enough for §4.5 to bite.
 PERIODS = 8
@@ -38,19 +38,19 @@ def _params() -> ModelParameters:
     return ModelParameters.from_spec(SPEC)
 
 
-def _grid(periods: int = PERIODS) -> DispatchGrid:
-    return make_grid([10.0] * periods)
+def _grid(periods: int = PERIODS) -> SettlementPeriods:
+    return make_periods([10.0] * periods)
 
 
-def _context(grid: DispatchGrid) -> tuple[pulp.LpProblem, ModelContext]:
+def _context(settlement: SettlementPeriods) -> tuple[pulp.LpProblem, ModelContext]:
     """A problem with the variables declared on it, and nothing else."""
     problem = pulp.LpProblem("block_under_test", pulp.LpMaximize)
-    return problem, ModelContext.declare(problem, grid, _params())
+    return problem, ModelContext.declare(problem, settlement, _params())
 
 
-def _rows(block: ConstraintBlock, grid: DispatchGrid | None = None) -> list[str]:
+def _rows(block: ConstraintBlock, settlement: SettlementPeriods | None = None) -> list[str]:
     """The names of the rows ``block`` adds to a fresh problem."""
-    problem, ctx = _context(grid if grid is not None else _grid())
+    problem, ctx = _context(settlement if settlement is not None else _grid())
     block(problem, ctx)
     return [constraint.name for constraint in problem.constraints()]
 
@@ -64,7 +64,7 @@ def test_variables_are_declared_with_the_bounds_of_the_spec() -> None:
     assert var.c1[0].upBound == params.max_charge_mw
     assert var.d1[0].upBound == params.max_discharge_mw
     assert var.storage[0].upBound == params.nominal_volume_mwh
-    assert var.charging[0].cat != "Continuous"
+    assert var.is_charging[0].cat != "Continuous"
 
 
 def test_the_cycle_count_is_left_free_so_that_its_cap_can_be_relaxed() -> None:
@@ -76,7 +76,7 @@ def test_the_cycle_count_is_left_free_so_that_its_cap_can_be_relaxed() -> None:
 
     assert var.n_cyc[0].upBound == math.inf
     assert var.n_cyc[0].lowBound == 0
-    for variables in (var.c1, var.c2, var.d1, var.d2, var.storage, var.n_cyc, var.charging):
+    for variables in (var.c1, var.c2, var.d1, var.d2, var.storage, var.n_cyc, var.is_charging):
         assert len(variables) == PERIODS
         assert variables[0].lowBound == 0
 
@@ -89,7 +89,7 @@ def test_the_context_carries_the_opening_state_into_the_first_period() -> None:
     assert ctx.previous_cycles(0) == ctx.state.cycles
     assert ctx.previous_storage(1) is ctx.var.storage[0]
     assert ctx.previous_cycles(1) is ctx.var.n_cyc[0]
-    assert ctx.keep_charged == pytest.approx(0.95)
+    assert ctx.retained == pytest.approx(0.95)
     assert ctx.delivered == pytest.approx(0.95)
 
 
@@ -103,9 +103,9 @@ def test_cycle_accounting_adds_one_row_per_period() -> None:
     assert _rows(cycle_accounting) == [f"cycles_{t}" for t in range(PERIODS)]
 
 
-def test_effective_volume_adds_one_row_per_period() -> None:
+def test_volume_limit_adds_one_row_per_period() -> None:
     """§4.1 with §4.7 substituted in."""
-    assert _rows(effective_volume) == [f"storage_bound_{t}" for t in range(PERIODS)]
+    assert _rows(volume_limit) == [f"storage_bound_{t}" for t in range(PERIODS)]
 
 
 def test_mode_exclusivity_adds_a_rate_row_on_each_side() -> None:
@@ -148,11 +148,11 @@ def test_the_objective_is_the_only_thing_the_objective_block_adds() -> None:
 
 def test_the_default_blocks_account_for_every_row_of_the_model() -> None:
     """A block dropped from the registry is a constraint silently lost."""
-    grid = _grid()
-    problem, _ = build_problem(grid, _params())
+    settlement = _grid()
+    problem, _ = build_problem(settlement, _params())
     assembled = {constraint.name for constraint in problem.constraints()}
 
-    from_blocks = {name for block in DEFAULT_BLOCKS for name in _rows(block, grid)}
+    from_blocks = {name for block in DEFAULT_BLOCKS for name in _rows(block, settlement)}
     assert from_blocks == assembled
 
 

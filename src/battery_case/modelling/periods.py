@@ -1,14 +1,14 @@
-"""The common half-hourly grid the model is posed on (§1, §5 "Data handling").
+"""The common half-hourly settlement the model is posed on (§1, §5 "Data handling").
 
 Market 1 settles half-hourly and Market 2 hourly, so both are projected onto one
-half-hourly grid: period ``i`` belongs to hour ``i // 2``, and Market 2's hourly
+half-hourly settlement: period ``i`` belongs to hour ``i // 2``, and Market 2's hourly
 price is repeated across the two half hours it covers.
 
 The pairing is **positional**, not by timestamp. Every day of the horizon holds
 exactly 48 Market 1 rows and 24 Market 2 rows, so position carries the period
 ordering reliably, whereas the Market 1 labels do not: at each spring clock
 change that sheet labels the 01:00-02:00 hour as 02:00, which is why its index
-is not monotonic there. Market 2's labels are taken as canonical and the grid is
+is not monotonic there. Market 2's labels are taken as canonical and the settlement is
 relabelled from them, which repairs the artefact without moving any price off
 the settlement period it was quoted for.
 """
@@ -22,7 +22,7 @@ import pandas as pd
 
 from battery_case.data_models import MARKET_2_RESOLUTION, MarketPrices
 
-#: Length of a settlement period on the common grid, in hours (§2, ``dt``).
+#: Length of a settlement period on the common settlement, in hours (§2, ``dt``).
 PERIOD_HOURS = 0.5
 
 #: Half-hourly periods per hourly Market 2 interval.
@@ -30,8 +30,8 @@ PERIODS_PER_HOUR = 2
 
 
 @dataclass(frozen=True, slots=True)
-class DispatchGrid:
-    """Prices for both markets on the common half-hourly grid.
+class SettlementPeriods:
+    """Prices for both markets on the common half-hourly settlement.
 
     ``price_2`` is the hourly price repeated across each hour's two half hours;
     the hourly commitment of §4.5 is imposed on the decision variables, not by
@@ -53,13 +53,13 @@ class DispatchGrid:
 
     @property
     def hours(self) -> int:
-        """Number of whole Market 2 intervals on the grid."""
+        """Number of whole Market 2 intervals on the settlement."""
         return len(self) // PERIODS_PER_HOUR
 
-    def window(self, start: int, periods: int) -> DispatchGrid:
-        """Return the sub-grid of ``periods`` periods starting at index ``start``."""
+    def window(self, start: int, periods: int) -> SettlementPeriods:
+        """Return the sub-settlement of ``periods`` periods starting at index ``start``."""
         stop = min(start + periods, len(self))
-        return DispatchGrid(
+        return SettlementPeriods(
             timestamps=self.timestamps[start:stop],
             price_1=self.price_1[start:stop],
             price_2=self.price_2[start:stop],
@@ -69,8 +69,8 @@ class DispatchGrid:
         self,
         start: str | pd.Timestamp | None = None,
         end: str | pd.Timestamp | None = None,
-    ) -> DispatchGrid:
-        """Return the sub-grid covering ``[start, end]``, inclusive.
+    ) -> SettlementPeriods:
+        """Return the sub-settlement covering ``[start, end]``, inclusive.
 
         The window is aligned to whole hours so that no Market 2 interval is cut
         in half and the commitment of §4.5 stays well defined: the start moves
@@ -90,8 +90,8 @@ def _whole_hours(periods: int) -> int:
     return periods - periods % PERIODS_PER_HOUR
 
 
-def build_grid(prices: MarketPrices) -> DispatchGrid:
-    """Project both markets onto the common half-hourly grid."""
+def build_periods(prices: MarketPrices) -> SettlementPeriods:
+    """Project both markets onto the common half-hourly settlement."""
     market_1, market_2 = prices.market_1, prices.market_2
 
     expected = len(market_2) * PERIODS_PER_HOUR
@@ -107,7 +107,7 @@ def build_grid(prices: MarketPrices) -> DispatchGrid:
         name="timestamp",
     )
 
-    return DispatchGrid(
+    return SettlementPeriods(
         timestamps=timestamps,
         price_1=market_1.to_numpy(dtype=float),
         price_2=np.repeat(market_2.to_numpy(dtype=float), PERIODS_PER_HOUR),

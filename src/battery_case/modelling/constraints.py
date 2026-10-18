@@ -2,13 +2,13 @@
 
 Each section of the write-up is a function that takes the problem and a
 :class:`ModelContext` and adds its own rows, naming them as the write-up does.
-:func:`~battery_case.modelling.milp.build_problem` folds :data:`DEFAULT_BLOCKS`
+:func:`~battery_case.modelling.window_problem.build_problem` folds :data:`DEFAULT_BLOCKS`
 over the problem, so the formulation is a list of sections rather than one body,
 and a section can be read, tested, or left out on its own.
 
 Two formulation choices are visible here. The effective volume S_max(t) is
 substituted out rather than carried as a variable, as §4.7 permits, so §4.1
-becomes one row per period in :func:`effective_volume`. And §4.4 is implied by
+becomes one row per period in :func:`volume_limit`. And §4.4 is implied by
 §4.1 and §4.2 together, so no block restates it.
 """
 
@@ -19,8 +19,8 @@ from dataclasses import dataclass
 
 import pulp
 
-from battery_case.modelling.grid import PERIODS_PER_HOUR, DispatchGrid
 from battery_case.modelling.parameters import ModelParameters
+from battery_case.modelling.periods import PERIODS_PER_HOUR, SettlementPeriods
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,7 +49,7 @@ class DispatchVariables:
     d2: list[pulp.LpVariable]
     storage: list[pulp.LpVariable]
     n_cyc: list[pulp.LpVariable]
-    charging: list[pulp.LpVariable]
+    is_charging: list[pulp.LpVariable]
 
     @classmethod
     def declare(
@@ -70,7 +70,7 @@ class DispatchVariables:
             d2=problem.add_variable_matrix("d2", periods, 0, params.max_discharge_mw),
             storage=problem.add_variable_matrix("S", periods, 0, params.nominal_volume_mwh),
             n_cyc=problem.add_variable_matrix("n_cyc", periods, 0),
-            charging=problem.add_variable_matrix("u", periods, cat="Binary"),
+            is_charging=problem.add_variable_matrix("u", periods, cat="Binary"),
         )
 
 
@@ -82,39 +82,39 @@ class ModelContext:
     like the write-up without recomputing them.
     """
 
-    grid: DispatchGrid
+    settlement: SettlementPeriods
     params: ModelParameters
     state: BatteryState
     var: DispatchVariables
-    cycle_price: float = 0.0
+    cycle_value: float = 0.0
 
     @classmethod
     def declare(
         cls,
         problem: pulp.LpProblem,
-        grid: DispatchGrid,
+        settlement: SettlementPeriods,
         params: ModelParameters,
         state: BatteryState = EMPTY_BATTERY,
         *,
-        cycle_price: float = 0.0,
+        cycle_value: float = 0.0,
     ) -> ModelContext:
         """Declare the variables on ``problem`` and bundle them with the data."""
-        periods = range(len(grid))
+        periods = range(len(settlement))
         return cls(
-            grid=grid,
+            settlement=settlement,
             params=params,
             state=state,
             var=DispatchVariables.declare(problem, periods, params),
-            cycle_price=cycle_price,
+            cycle_value=cycle_value,
         )
 
     @property
     def periods(self) -> range:
         """The period indices of the window."""
-        return range(len(self.grid))
+        return range(len(self.settlement))
 
     @property
-    def keep_charged(self) -> float:
+    def retained(self) -> float:
         """``1 - e_c``: the share of imported energy that reaches the store (§4.2)."""
         return 1.0 - self.params.charge_loss
 
@@ -139,24 +139,24 @@ ConstraintBlock = Callable[[pulp.LpProblem, ModelContext], None]
 def profit_objective(problem: pulp.LpProblem, ctx: ModelContext) -> None:
     """§3 objective: energy delivered at each market's price, less energy bought.
 
-    ``ctx.cycle_price`` is a charge in £ per equivalent full cycle used, so that
-    a window solved in isolation still weighs cycle life against the spread in
-    front of it. It is zero in the undecomposed model.
+    ``ctx.cycle_value`` is what one equivalent full cycle is worth, in £,
+    charged here so that a window solved in isolation still weighs cycle life
+    against the spread in front of it. It is zero in the undecomposed model.
     """
     var = ctx.var
     dt = ctx.params.dt
-    cycles_used = var.n_cyc[-1] - ctx.state.cycles
+    cycles_this_window = var.n_cyc[-1] - ctx.state.cycles
 
     problem += (
         pulp.lpSum(
             dt
             * (
-                ctx.grid.price_1[t] * (ctx.delivered * var.d1[t] - var.c1[t])
-                + ctx.grid.price_2[t] * (ctx.delivered * var.d2[t] - var.c2[t])
+                ctx.settlement.price_1[t] * (ctx.delivered * var.d1[t] - var.c1[t])
+                + ctx.settlement.price_2[t] * (ctx.delivered * var.d2[t] - var.c2[t])
             )
             for t in ctx.periods
         )
-        - ctx.cycle_price * cycles_used
+        - ctx.cycle_value * cycles_this_window
     )
 
 
@@ -168,7 +168,7 @@ def energy_balance(problem: pulp.LpProblem, ctx: ModelContext) -> None:
         problem += (
             var.storage[t]
             == ctx.previous_storage(t)
-            + ctx.params.dt * (ctx.keep_charged * (var.c1[t] + var.c2[t]) - var.d1[t] - var.d2[t]),
+            + ctx.params.dt * (ctx.retained * (var.c1[t] + var.c2[t]) - var.d1[t] - var.d2[t]),
             f"balance_{t}",
         )
 
@@ -185,7 +185,7 @@ def cycle_accounting(problem: pulp.LpProblem, ctx: ModelContext) -> None:
         )
 
 
-def effective_volume(problem: pulp.LpProblem, ctx: ModelContext) -> None:
+def volume_limit(problem: pulp.LpProblem, ctx: ModelContext) -> None:
     """§4.1 with §4.7 substituted in: S(t) <= S_max(t) = volume (1 - rho n(t))."""
     volume = ctx.params.nominal_volume_mwh
     for t in ctx.periods:
@@ -208,11 +208,11 @@ def mode_exclusivity(problem: pulp.LpProblem, ctx: ModelContext) -> None:
     var = ctx.var
     for t in ctx.periods:
         problem += (
-            var.c1[t] + var.c2[t] <= ctx.params.max_charge_mw * var.charging[t],
+            var.c1[t] + var.c2[t] <= ctx.params.max_charge_mw * var.is_charging[t],
             f"charge_rate_{t}",
         )
         problem += (
-            var.d1[t] + var.d2[t] <= ctx.params.max_discharge_mw * (1 - var.charging[t]),
+            var.d1[t] + var.d2[t] <= ctx.params.max_discharge_mw * (1 - var.is_charging[t]),
             f"discharge_rate_{t}",
         )
 
@@ -241,7 +241,7 @@ def cycle_life_cap(problem: pulp.LpProblem, ctx: ModelContext) -> None:
 DEFAULT_BLOCKS: tuple[ConstraintBlock, ...] = (
     energy_balance,  # §4.2
     cycle_accounting,  # §4.6
-    effective_volume,  # §4.1 + §4.7
+    volume_limit,  # §4.1 + §4.7
     mode_exclusivity,  # §4.3
     hourly_commitment,  # §4.5
     cycle_life_cap,  # §4.6
@@ -251,9 +251,9 @@ DEFAULT_BLOCKS: tuple[ConstraintBlock, ...] = (
 def relaxing(*blocks: ConstraintBlock) -> tuple[ConstraintBlock, ...]:
     """:data:`DEFAULT_BLOCKS` without ``blocks`` — the model that prices them.
 
-    Removing a constraint is how it is priced: solve without it, charge for
-    violating it in the objective, and the charge that restores feasibility is
-    the constraint's shadow price. Raises if a block is not in the default set,
+    Removing a constraint is how it is valued: solve without it, charge the
+    objective for violating it, and the charge that restores feasibility is the
+    constraint's shadow price. Raises if a block is not in the default set,
     so a typo cannot silently relax nothing.
     """
     unknown = [block.__name__ for block in blocks if block not in DEFAULT_BLOCKS]
@@ -263,4 +263,4 @@ def relaxing(*blocks: ConstraintBlock) -> tuple[ConstraintBlock, ...]:
 
 
 #: §4 with the cycle budget removed, for the Lagrangian relaxation of §6.
-RELAXED_BLOCKS: tuple[ConstraintBlock, ...] = relaxing(cycle_life_cap)
+UNCAPPED_BLOCKS: tuple[ConstraintBlock, ...] = relaxing(cycle_life_cap)

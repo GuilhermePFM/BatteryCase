@@ -4,12 +4,12 @@
 asserts that solving all 52,608 periods at once is not practical. This file holds
 the measurements behind that assertion.
 
-Everything here comes from [`scripts/solve_monolith.py`](../../scripts/solve_monolith.py),
+Everything here comes from [`scripts/solve_exact.py`](../../scripts/solve_exact.py),
 which builds the formulation of §4 over the first *N* days and hands it to HiGHS
-once, with no decomposition and no cycle pricing:
+once, with no decomposition and no cycle value:
 
 ```
-uv run python scripts/solve_monolith.py <days> <time_limit_seconds>   # 0 days = the whole horizon
+uv run python scripts/solve_exact.py <days> <time_limit_seconds>   # 0 days = the whole horizon
 ```
 
 Measured on this machine (HiGHS 1.15.1 in process, single worker, 20 threads
@@ -80,10 +80,10 @@ below its best bound. What follows from that, and what does not:
 **What is guaranteed.** Branch and bound maintains a *dual bound*: the best
 objective achievable by any relaxation of the problem still in the tree. For a
 maximisation the optimum can never exceed it, so the bound is an upper limit on
-the MILP optimum rather than an estimate of it. Separately, the rolling schedule
+the MILP optimum rather than an estimate of it. Separately, the rolling plan
 is feasible for the one-shot program: it satisfies every constraint of §4 over the
 whole horizon (`assert_feasible` in `tests/helpers.py` re-derives them against the
-saved schedule), and evaluating the §3 objective expression on it reproduces
+saved plan), and evaluating the §3 objective expression on it reproduces
 £207,365.00 exactly. A feasible point is a lower limit. The optimum of **this
 model** is therefore bracketed, and with the run stopped at its limit the bracket
 is:
@@ -92,7 +92,7 @@ is:
 £207,365.00  <=  model optimum  <=  £208,209.57
 ```
 
-so the rolling schedule is within **0.41%** of the optimum of this model. That is
+so the rolling plan is within **0.41%** of the optimum of this model. That is
 an upper limit on what it gives up rather than a measured loss, and it would
 narrow further had the bound kept falling.
 
@@ -107,7 +107,7 @@ decomposition would lose on different data; nothing here shows the gap stays thi
 small on another three years of prices.
 
 **The engineering conclusion does not depend on the bound.** Given a fixed hour
-the one-shot solve returns a schedule worth £3,287 less than the decomposition's,
+the one-shot solve returns a plan worth £3,287 less than the decomposition's,
 1.6% worse, because branch and bound spends the hour proving things about the root
 relaxation of a 368,000-variable problem rather than trading. The bound adds the
 reassurance that what the decomposition leaves behind is small: at most 0.41% of

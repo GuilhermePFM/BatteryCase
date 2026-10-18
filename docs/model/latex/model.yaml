@@ -5,7 +5,7 @@ abstract: |
   Formulation of the battery dispatch problem for the Aurora second-round
   technical exercise: a 2 MW / 4 MWh battery trading across two wholesale
   electricity markets over 2018--2020 as a price taker. The problem is posed
-  as a mixed-integer linear program on a common half-hourly grid, with
+  as a mixed-integer linear program on a common half-hourly axis, with
   round-trip losses, a charge/discharge complementarity condition, an hourly
   commitment for the second market, a cycle-life budget and
   throughput-driven degradation of the usable volume. The horizon is solved

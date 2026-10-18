@@ -24,12 +24,12 @@ cycle budget:
 | Profit per cycle spent | £60.23 |
 
 Reproduce with `uv run battery-case dispatch`, which writes the half-hourly
-schedule every figure above is read off.
+plan every figure above is read off.
 
 ### Reading the result
 
 **The markets are used as a pair, not interchangeably.** Market 2 is dearer
-than Market 1 in 77.5% of periods, by £3.51/MWh on average, and the schedule
+than Market 1 in 77.5% of periods, by £3.51/MWh on average, and the plan
 takes that: of the 14,497 MWh bought, 11,210 is bought in Market 1, and of the
 13,083 MWh delivered, 11,174 goes into Market 2. Part of the profit is
 arbitrage over time, part is the standing gap between the two markets, and the
