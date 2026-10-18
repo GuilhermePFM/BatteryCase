@@ -57,7 +57,7 @@ cycles against a budget of one, so the subgradient is −2: the charge is too lo
 by a lot. At `λ = 300` cycle use is exactly 1.0 and the subgradient is 0, which
 is the optimality condition. £300 is therefore the shadow price, where the
 bisection's £1,435.55 is the top of a plateau
-([cycle budget](../cycle-budget.md#what-the-search-is-searching-over)).
+([bisection](../bisection.md#what-the-search-is-searching-over)).
 
 > [!IMPORTANT]
 > **The budget must be a row and nothing else.** A relaxed pass only relaxes if

@@ -55,14 +55,6 @@ numbers.
 
 ## Still open
 
-- The value of cycle rationing under the pro-rated budget, over three years.
-  Each step re-solves the whole horizon, measured at ~77 seconds a pass, so a
-  calibrated three-year run is about 13 minutes — run once, but not a test-suite
-  item. It is measured on eight horizons from 1 to 90 days with the budget
-  halved, each against the exact answer, and on three longer horizons with only
-  the Lagrangian bound to go on.
-  ([why it binds there](cycle-budget.md#what-this-means-for-the-actual-answer) ·
-  [the measurements](model/cycle-price-experiments.md))
 - The dual bound is validated to 90 days, not to three years. Weak duality needs
   each pass to be a true maximum of the relaxed problem, and a rolling pass with
   one day of lookahead is a heuristic. The bound held above the proven optimum in
@@ -73,10 +65,6 @@ numbers.
 - Foresight is checked on one month, June 2018. A month where the cycle budget
   mattered would test it harder.
   ([the measurement](solve.md#is-one-day-of-foresight-enough))
-- There is no heuristic benchmark yet. The `Dispatcher` protocol exists so that
-  one can be scored by the same `summarise`, which is the cheapest way to find
-  out whether the MILP's complexity is paying for itself.
-  ([the seam](architecture.md#modelling-the-decision-section-by-section))
 
 ---
 

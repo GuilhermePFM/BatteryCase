@@ -114,26 +114,32 @@ flowchart TD
     D["<b>docs/data.md</b><br/>the two attachments and their quirks"]
     A["<b>docs/architecture.md</b><br/>the packages, every file, the decision inside it"]
     S["<b>docs/solve.md</b><br/>what happens in a solve · the rolling horizon"]
-    C["<b>docs/cycle-budget.md</b><br/>the one constraint decomposition can get wrong<br/>and the λ that fixes it"]
+    C["<b>docs/cycle-budget.md</b><br/>the one constraint decomposition can get wrong<br/>the λ that fixes it, and the cutting planes<br/>that find it"]
+    B["<b>docs/bisection.md</b><br/>the comparison method for that λ"]
+    RE["<b>docs/model/results.md</b><br/>the figures for 2018–2020,<br/>and how to read them"]
     X["<b>docs/model/cycle-price-experiments.md</b><br/>bisection vs cutting planes, measured<br/>against an exact solve"]
     ST["<b>docs/model/model-stochastic.md</b><br/>the same model with stochastic prices<br/>formulation only"]
     V["<b>docs/validation.md</b><br/>what is checked, what was found, what is open"]
 
     R --> M
     R --> D --> A --> S --> C --> V
+    M --> RE
     M --> X
     C --> X
+    C --> B
     M --> ST
 ```
 
 | Document | Read it for |
 | --- | --- |
 | [`docs/model/model.md`](docs/model/model.md) | The formulation: objective, constraints, assumptions, numbered §1–§7. Every module cites it. |
+| [`docs/model/results.md`](docs/model/results.md) | §7: profit, energy, cycles and degradation over 2018–2020, year by year, with the reading of them. |
 | [`docs/model/model-stochastic.md`](docs/model/model-stochastic.md) | The multistage stochastic extension: scenario tree, non-anticipativity, the cycle cap under uncertainty, mean-CVaR. Formulation only, nothing implemented. |
 | [`docs/data.md`](docs/data.md) | What the two spreadsheets contain, the clock-change artefacts, and why the loader reports rather than repairs. |
 | [`docs/architecture.md`](docs/architecture.md) | How the code is structured, every class with the reason it exists, why the constraints are separate blocks, and how two pricing algorithms share one seam. |
 | [`docs/solve.md`](docs/solve.md) | Why the horizon is decomposed, what one window does, and the evidence that a day of foresight suffices. |
-| [`docs/cycle-budget.md`](docs/cycle-budget.md) | The global cycle cap, the misallocation decomposition causes, pricing cycles instead of splitting them, and how λ is found by bisection. |
+| [`docs/cycle-budget.md`](docs/cycle-budget.md) | The global cycle cap, the misallocation decomposition causes, pricing cycles instead of splitting them, and how λ is found by the default method: Kelley's cutting planes. |
+| [`docs/bisection.md`](docs/bisection.md) | The second method for the same λ, kept for comparison: what a bisection on cycle use searches for, what it costs, and what it cannot certify. |
 | [`docs/model/cycle-price-experiments.md`](docs/model/cycle-price-experiments.md) | Why a capped pass has no usable gradient, and both pricing methods measured against exactly solved instances: passes, λ, profit and the dual bound. |
 | [`docs/model/tractability.md`](docs/model/tractability.md) | Solve time against window length, and the whole horizon as one MILP: the measurements behind decomposing it. |
 | [`docs/validation.md`](docs/validation.md) | The 64 tests, what checking found that thinking had not, and the questions still open. |

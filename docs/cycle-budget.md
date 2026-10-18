@@ -3,7 +3,8 @@
 *The cycle budget constaraint couples distant windows.*
 
 [← README](../README.md) · [data](data.md) · [architecture](architecture.md) ·
-[solve](solve.md) · [pricing experiments](model/cycle-price-experiments.md) ·
+[solve](solve.md) · [bisection](bisection.md) ·
+[pricing experiments](model/cycle-price-experiments.md) ·
 [validation](validation.md)
 
 ---
@@ -46,65 +47,19 @@ A window now spends a cycle only on a spread worth at least `λ`. It declines a
 mediocre trade today because the charge prices in the possibility of a better
 one later, without needing to know what that trade is.
 
-The `λ` wanted is the budget's shadow price: **the largest charge at which the
-horizon still spends its whole budget**. Below it the early days overbuy; above
-it cycles go unused that would have paid for themselves. Cycle use falls
-monotonically in `λ`, so `BisectionPricer` bisects, re-solving the horizon at
-each step and keeping the highest price that still spends the budget in full. A
-budget that is not exhausted at `λ = 0` is not binding, and zero is returned
-after a single run.
+The `λ` wanted is the budget's shadow price: **the charge at which the horizon
+spends exactly its budget and no more**. Below it the early days overbuy; above
+it cycles go unused that would have paid for themselves. Finding it is a search,
+and every step of that search costs a whole pass over the horizon, so the method
+is chosen on how many passes it spends and what it can say about the answer when
+it stops. The default is **Kelley's cutting planes** on the dual of §6
+([below](#kelleys-cutting-planes-the-default)). A budget that is not exhausted
+at `λ = 0` is not binding, and zero is returned after a single pass.
 
-### Why cycle use falls as λ rises
-
-Monotonicity is what makes a bisection legitimate: it is the property that lets
-one run at one charge rule out a whole half of the interval. Within a single
-window, from a fixed opening state, it is a one-line exchange argument. The
-feasible schedules do not depend on `λ` — only the objective does, and `λ`
-enters it linearly, charging `λ·n(x)` for a schedule `x` that spends `n(x)`
-cycles. Take two charges `λ₁ < λ₂` and an optimal schedule for each, `x₁` and
-`x₂`. Each is at least as good as the other *under its own charge*:
-
-```
-profit(x₁) − λ₁·n(x₁)  ≥  profit(x₂) − λ₁·n(x₂)
-profit(x₂) − λ₂·n(x₂)  ≥  profit(x₁) − λ₂·n(x₁)
-```
-
-Add the two inequalities; the profits cancel, leaving
-
-```
-(λ₂ − λ₁) · ( n(x₁) − n(x₂) )  ≥  0        so   n(x₁) ≥ n(x₂)
-```
-
-A dearer cycle is never bought more often. Nothing in the argument touches the
-binaries of §4.3 — it uses only that both schedules are optimal over the *same*
-feasible set — so it holds for the MILP exactly as it would for an LP.
-Equivalently: the window's value function is convex in `λ` with `−n` as a
-subgradient, and a convex function's subgradient is non-decreasing, which is the
-same statement read through §6's dual.
-
-Two things the argument does not give, and both shape the algorithm:
-
-- **The fall is weak, not strict.** `n(λ)` is piecewise constant, flat except at
-  the charges where some day stops being worth a cycle, and flat as well
-  wherever the cap clips it. So there is generally no `λ` at which use *equals*
-  the budget, and the search aims at the top of a plateau instead
-  ([what the search is searching over](#what-the-search-is-searching-over)).
-- **It is per window, not per horizon.** Raising `λ` changes what each window
-  commits, so it changes the state handed to the next one, and the later
-  windows' feasible sets are then no longer the fixed set the exchange argument
-  needs. Total use over the horizon is monotone in `λ` *empirically* on this
-  data, which is the assumption bisection rests on — see the caveats closing
-  [the search](#how-λ-is-found-bisection-on-the-price-of-a-cycle).
-
-This page is about that search, which is the easiest way to see what `λ` *is*:
-one bit per pass, and no theory beyond monotonicity. It is not the default. The
-default is Kelley's cutting planes on the dual of §6, which sits behind the same
-seam, costs about half the passes, and returns a bound on the answer where this
-method certifies nothing. Bisection is kept as the reference: a second
-algorithm, on a different subproblem, that the default can be checked against at
-horizons no exact solve can reach. Both are measured in
-[pricing experiments](model/cycle-price-experiments.md), and the seam is described in
-[architecture §4](architecture.md#4-how-to-obtain-the-lagrangian-price-cutting-planes-and-bissection).
+A second method, a bisection on cycle use, is also implemented. It is **not** the
+default and is kept for comparison — a second algorithm, on a different
+subproblem, that the default can be checked against at horizons where no exact
+solve is available. It has its own page: [bisection](bisection.md).
 
 ## What it looks like
 
@@ -136,7 +91,7 @@ Both runs spend the full 1.0-cycle budget and both respect the cap. Only the
 > the lookahead, since a one-day lookahead already handles a next-day spread by
 > itself. That is why the instance above is shaped the way it is.
 
-## How λ is found: bisection on the price of a cycle
+## How λ is found
 
 ### Where a price comes from at all
 
@@ -162,117 +117,100 @@ here. A window then applies a rule that needs no knowledge of the future,
 the marginal value of the last cycle in the budget, making it the budget's
 shadow price. λ = 0 means cycles are free, so the budget is not binding.
 
-### What the search is searching over
+### Kelley's cutting planes, the default
 
-The obvious target, "find the λ where cycle use equals the budget", does not
-exist in general. Cycle use as a function of λ is a **step function**: trades
-drop out one threshold at a time, so the curve is flat almost everywhere and
-jumps where a day stops being worth a cycle. Measured on the three-day test
-case above, with one cycle of budget:
+A *relaxed* pass — the model of §4 with `cycle_life_cap` dropped and the charge
+in its place — returns more than one bit. It returns the value `L(λ)` of the
+relaxed problem and an exact subgradient of it,
 
-| λ (£/cycle) | Cycles used | Spent by day 1 | Gross profit | Regime |
-| --- | --: | --: | --: | --- |
-| 0 … 294 | 1.0000 | 0.2375 | £1,165.04 | budget spent in full, on the wrong days |
-| 296 … 1,435 | 1.0000 | 0 | £1,435.79 | budget spent in full, on the best spread |
-| 1,440 and up | 0.0000 | 0 | £0.00 | too dear to trade at all |
-
-```mermaid
-flowchart LR
-    Z["<b>λ = 0 … £294</b><br/>cycles used: 1.0<br/>day 1 takes 0.24<br/>£1,165"]
-    M["<b>λ = £296 … £1,435</b><br/>cycles used: 1.0<br/>day 1 declines<br/><b>£1,436 · the plateau</b>"]
-    H["<b>λ ≥ £1,440</b><br/>cycles used: 0<br/>nothing trades<br/>£0"]
-
-    Z -->|"£295: the modest day<br/>is priced out"| M
-    M -->|"£1,436: the dear day<br/>is priced out too"| H
-
-    M -.-> T["<b>bisection targets here</b><br/>the top of the plateau<br/>λ = £1,435.55"]
+```
+g = B − n_cyc(T)      evaluated at the pass's own schedule
 ```
 
-The two thresholds are the two days' marginal cycle values, and they are
-visible to the pound: between £294 and £296 the modest day stops trading, and
-between £1,435 and £1,440 the dear day does too. The middle column shows that
-**cycle use alone cannot tell a good allocation from a bad one**, the budget
-being spent in full on both sides of £295. What improves with λ is *where* it is
-spent. The search therefore aims at the top of the plateau, the **highest λ at
-which the budget is still fully spent**, which is the last λ before the most
-valuable cycle in the horizon is itself priced out.
+negative when the horizon overspends at this charge and positive when it
+underspends. `L` is convex and piecewise linear in `λ`, being a pointwise
+maximum of functions affine in `λ`, so each pass contributes a **cut**: a linear
+function lying everywhere below `L`.
 
-### The algorithm
+```
+L(λ)  ≥  L(λ_i) + g_i · (λ − λ_i)       for every λ ≥ 0
+```
+
+The next charge to try is the minimiser of the cuts' upper envelope — a
+two-variable linear program with one row per pass, which beside a pass over the
+horizon costs nothing:
+
+```
+min  θ
+s.t. θ ≥ L(λ_i) + g_i (λ − λ_i)     for each cut i
+     0 ≤ λ ≤ upper_bound
+```
 
 ```python
-# bisection.py: BisectionPricer.price, reduced to its loop
-# Probe at zero first: if the budget survives a free run, it does not bind.
-best_schedule = run_whole_horizon(cycle_price=0.0)
-if cycles_used(best_schedule) < budget * (1 - tolerance):
-    return 0.0, best_schedule  # one pass, no bisection
+# cutting_plane.py: CuttingPlanePricer.price, reduced to its loop
+for _ in range(max_passes):                      # 20, a stop of last resort
+    cuts.append(oracle.at(price, relaxed=True))  # value and subgradient
+    best_dual = min(cut.value for cut in cuts)   # upper bound on min L
+    master_value, next_price = solve_master(cuts, upper_bound)   # lower bound
+    if best_dual - master_value <= tolerance * abs(best_dual):   # 1e-4
+        break
+    price = next_price
 
-low, high = 0.0, upper_bound  # invariant: low spends in full, high does not
-for _ in range(max_iterations):  # 12
-    price = 0.5 * (low + high)
-    schedule = run_whole_horizon(cycle_price=price)  # 1,096 window MILPs
-    if cycles_used(schedule) >= budget * (1 - tolerance):
-        low = best_price = price  # still spends it all, so push the price up
-        best_schedule = schedule  # keep it, so no pass is wasted
-    else:
-        high = price  # priced out cycles that would have paid
-return best_price, best_schedule
+best = min(cuts, key=lambda cut: cut.value)
+# Primal recovery: a relaxed pass is an evaluation, not a deliverable.
+deliverable = best if best.feasible else oracle.at(best.price, relaxed=False)
 ```
 
-Four details that matter more than the bisection itself:
+Three things that follow, and they are the reason this is the default:
 
-- **Each iteration is a whole horizon**, a full rolling pass of 1,096 MILPs
-  rather than a single window. The calibrated run therefore costs `1 + 12`
-  passes, about 17 minutes over three years at the measured ~77 s a pass. The
-  pass is `CycleOracle.at(λ, relaxed=False)`, which memoises and counts it, so a
-  method cannot spend one twice unnoticed.
-- **The schedule travels with the price.** Returning `(λ, schedule)` means the
-  winning pass is kept rather than re-run at the end.
-- **`tolerance` is a fraction of the budget, not of λ.** At `1e-3` a run counts
-  as spending the budget if it gets within 0.1% of it. Some slack is necessary:
-  the cycle count is a float out of a MILP solved to a feasibility tolerance,
-  and the last fraction of a cycle is rarely spendable against the hourly
-  blocks of §4.5.
-- **The bracket does not need to be tight.** Twelve halvings leave an interval
-  of `upper_bound / 2¹²`: about 5p at the default £200, £1.22 in the test's
-  £5,000 range. Any λ inside the plateau yields the *same schedule*, so
-  precision in λ is worth nothing beyond landing in the right band.
+- **It brackets its own answer.** The best `L(λ_i)` evaluated so far is an upper
+  bound on `min_λ L(λ)` and, by weak duality, on the constrained optimum itself;
+  the master's value is a lower bound on the same quantity, the cuts being
+  underestimators. So the loop stops on a **measured relative gap** rather than
+  on an iteration count, and what it reports at exit is a statement about the
+  quality of the answer rather than only about the price. `max_passes` is a stop
+  of last resort; reaching it means the gap did not close, which the returned
+  `DualBound` says.
+- **It is cheaper.** Seven to nine passes across the 1-to-90-day sweep, a mean of
+  8.4, against a fixed 13 for the bisection, and ten passes over the full three
+  years. On the three-day instance it closes to a **zero** gap in 3 passes, which
+  proves its £1,435.79 optimal for the relaxation.
+- **Its λ is the shadow price, as stated.** £28.85 a cycle on 30 days of real
+  prices, against an exactly solved £4,937.98 that it lands within 0.05% of.
+  A bisection returns the top of a plateau instead, which yields the same
+  schedule but is not a price to quote.
 
-### What the trace looks like
-
-On the three-day instance the probe at `λ = 0` exhausts the budget, so the
-bisection runs: twelve halvings over `[0, 5000]`, each a whole pass, converging
-on **£1,435.55**. The step is what it is working against — every probe above it
-returns 0 cycles and £0, every probe below returns the identical £1,435.79
-schedule — so only the first two iterations change the answer and the remaining
-ten buy confidence that the price sits at the top of the plateau. Gross profit
-over the three days is £1,165.04 unpriced against £1,435.79 priced, for the same
-single cycle.
+One step is needed to turn the search into a deliverable. A relaxed pass may
+overspend the budget, and an infeasible schedule is not an answer, so the method
+ends with **one capped pass at the charge it settled on** — skipped when the best
+relaxed pass already respects the budget, in which case its schedule is already
+feasible.
 
 > [!WARNING]
-> **What this method does not give you.**
+> **What the bound is and is not.**
 >
-> **It is not a proof of optimality.** Pricing a constraint instead of imposing
-> it is a Lagrangian relaxation, and for a mixed-integer problem that carries a
-> duality gap: there may be no λ whose per-window solutions assemble into the
-> best budget-respecting schedule. λ rations the budget far better than
-> first-come-first-served does, but it does not certify the result, and nothing
-> in this method does: it reads one bit per pass and so has no dual value to
-> report. `PricingResult.bound` is `None` for it, and
-> [the cutting-plane method](model/cycle-price-experiments.md) exists for that
-> reason.
+> **A near-zero duality gap is a property of these instances.** Lagrangian
+> relaxation of a *mixed-integer* program generally leaves a gap, so
+> `min_λ L(λ)` may exceed the constrained optimum strictly: the method stays
+> correct, returning a schedule and a valid bracket, but the bracket does not
+> close. That eight instances closed to within 0.01% says something about this
+> problem and nothing about the next one.
 >
-> **Monotonicity is per window, not proven for the composition.** The exchange
-> argument [above](#why-cycle-use-falls-as-λ-rises) holds a window's opening
-> state fixed; across the horizon the handover moves with λ, so total use is
-> monotone on this data as an assumption rather than a theorem — and that
-> assumption is what the bisection rests on.
+> **The bound rests on each pass being a true maximum.** Weak duality needs
+> `L(λ)` maximised over the relaxed feasible set, and a rolling pass with one day
+> of lookahead is a heuristic that can under-solve and report a value *below* the
+> true `L`, which would leave the bound no bound at all. It is checked against an
+> exact solve on eight horizons, 1 to 90 days; the three-year bound rests on the
+> assumption rather than on evidence.
 >
-> **The upper bound can clip silently.** If the budget is still fully spent at
-> `upper_bound`, nothing notices: `low` walks up towards it and a price near the
-> ceiling is returned as though it were the shadow price. The default £200 is
-> well below the test case's £1,436, which is why that test has to pass
-> `upper_bound=5_000`. A guard that re-probes at the ceiling before bisecting
-> would fix it, and is not there yet.
+> **The gap is on the dual, not on the schedule.** The dual gap holds at
+> 0.003–0.007% on the long horizons while the distance from the bound to the
+> *feasible* schedule is 0.44% at a year and 1.73% over three years — £3,231. The
+> recovery pass, not the search, is what that measures.
+>
+> Both are measured in
+> [pricing experiments](model/cycle-price-experiments.md), where the two methods
+> are also compared row by row against exactly solved instances.
 
 ## What this means for the actual answer
 

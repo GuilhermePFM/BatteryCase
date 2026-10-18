@@ -16,5 +16,23 @@
     "use_new_terminal": false,
     "allow_concurrent_runs": false,
     "reveal": "no_focus"
+  },
+  {
+    "label": "Render stochastic model doc",
+    "command": "make",
+    "args": ["html-stochastic"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "no_focus"
+  },
+  {
+    "label": "Preview stochastic model doc in browser",
+    "command": "make",
+    "args": ["preview-stochastic"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "no_focus"
   }
 ]

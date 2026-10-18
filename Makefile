@@ -2,9 +2,14 @@ MODEL   := docs/model/model.md
 HTML    := docs/model/model.html
 PDF     := docs/model/model.pdf
 
-PANDOC_FLAGS := --standalone --metadata pagetitle="Battery dispatch model"
+STOCH      := docs/model/model-stochastic.md
+STOCH_HTML := docs/model/model-stochastic.html
+STOCH_PDF  := docs/model/model-stochastic.pdf
 
-.PHONY: html preview pdf clean-docs
+PANDOC_FLAGS := --standalone --metadata pagetitle="Battery dispatch model"
+STOCH_FLAGS  := --standalone --metadata pagetitle="Battery dispatch under stochastic prices"
+
+.PHONY: html preview pdf html-stochastic preview-stochastic pdf-stochastic clean-docs
 
 ## Render the model doc to HTML (MathJax, same engine GitHub uses)
 html: $(HTML)
@@ -24,5 +29,19 @@ pdf: $(PDF)
 $(PDF): $(MODEL)
 	pandoc $< -o $@ $(PANDOC_FLAGS) --toc --pdf-engine=tectonic
 
+## The same three targets for the stochastic formulation
+html-stochastic: $(STOCH_HTML)
+
+$(STOCH_HTML): $(STOCH)
+	pandoc $< -o $@ $(STOCH_FLAGS) --mathjax
+
+preview-stochastic: $(STOCH_HTML)
+	setsid -f xdg-open "$(abspath $(STOCH_HTML))"
+
+pdf-stochastic: $(STOCH_PDF)
+
+$(STOCH_PDF): $(STOCH)
+	pandoc $< -o $@ $(STOCH_FLAGS) --toc --pdf-engine=tectonic
+
 clean-docs:
-	rm -f $(HTML) $(PDF)
+	rm -f $(HTML) $(PDF) $(STOCH_HTML) $(STOCH_PDF)
