@@ -1,0 +1,18 @@
+# Shared pandoc options for every article built from the model notes.
+# The preamble is injected with --include-in-header, not from here, so that
+# the path is resolved by make rather than by the LaTeX run's working dir.
+documentclass: article
+classoption:
+  - 11pt
+  - oneside
+geometry:
+  - a4paper
+  - margin=2.6cm
+numbersections: true
+secnumdepth: 3
+toc: true
+toc-depth: 3
+colorlinks: true
+linkcolor: black
+urlcolor: blue
+toccolor: black

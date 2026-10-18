@@ -1,0 +1,14 @@
+title: Battery dispatch under stochastic prices
+subtitle: A multistage stochastic mixed-integer formulation
+author: Guilherme Machado
+abstract: |
+  The dispatch problem of the companion note, restated for the case in which
+  the two price series are not known in advance: a multistage stochastic
+  mixed-integer linear program over a finite scenario tree. The decision
+  becomes a policy rather than a schedule, the objective a functional of a
+  distribution, and the cycle-life budget a statement about paths that admits
+  three readings. The physics is unchanged, and every constraint of the
+  deterministic model holds node by node. The note states the model, its
+  deterministic equivalent and its size, a mean-CVaR variant, the scenario
+  form, and the bounds that any implementation must respect.
+promote-title: true

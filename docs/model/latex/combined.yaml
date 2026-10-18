@@ -1,0 +1,19 @@
+# `report` rather than `article`: with both notes in one document each one is
+# a part, its own sections become chapters, and the subsections keep the
+# "chapter.section" numbering the Markdown wrote by hand.
+documentclass: report
+
+title: Battery dispatch
+subtitle: Deterministic and stochastic formulations
+author: Guilherme Machado
+abstract: |
+  The two formulations of the battery dispatch problem in one document: the
+  deterministic mixed-integer program solved over 2018--2020 with perfect
+  foresight, and its multistage stochastic counterpart over a scenario tree.
+  Part I states the model, its solution approach and the rolling-window
+  decomposition; Part II drops the assumption that prices are known in
+  advance and states the policy problem that replaces it.
+# Each note keeps its level-1 heading, which --top-level-division=part turns
+# into a part; the preamble restarts section numbering at every part, so the
+# "\u00a74.2" references inside each note still point at the right section.
+promote-title: false

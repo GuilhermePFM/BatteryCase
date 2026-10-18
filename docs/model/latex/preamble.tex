@@ -1,0 +1,33 @@
+% Typographic preamble for the model notes rendered as LaTeX articles.
+% Loaded through pandoc's header-includes, after amsmath/booktabs/hyperref.
+
+\usepackage{microtype}
+\usepackage{mathtools}
+
+% Headings: small-caps sections, a little air above them.
+\usepackage[explicit]{titlesec}
+\titleformat{\section}{\normalfont\large\bfseries}{\thesection}{1em}{#1}
+\titleformat{\subsection}{\normalfont\normalsize\bfseries}{\thesubsection}{1em}{#1}
+\titlespacing*{\section}{0pt}{1.6em plus .4em minus .2em}{0.7em}
+\titlespacing*{\subsection}{0pt}{1.2em plus .3em minus .2em}{0.5em}
+
+% Tables: pandoc emits booktabs longtables; give them room to breathe.
+\renewcommand{\arraystretch}{1.15}
+\setlength{\tabcolsep}{6pt}
+
+% Tighter lists than the LaTeX default, which is built for standalone items.
+\usepackage{enumitem}
+\setlist{itemsep=0.25em, topsep=0.4em, parsep=0pt}
+
+% Display math is frequent and often tall; the defaults leave it cramped.
+\setlength{\abovedisplayskip}{10pt plus 2pt minus 2pt}
+\setlength{\belowdisplayskip}{10pt plus 2pt minus 2pt}
+\allowdisplaybreaks
+
+% The combined document is a report, where each note is a part: restart the
+% chapter numbering at every part so that a "§4.2" reference inside a note
+% still points at the section the Markdown numbered 4.2. In the standalone
+% articles there are no chapters, and nothing below applies.
+\makeatletter
+\@ifundefined{chapter}{}{\@addtoreset{chapter}{part}}
+\makeatother
