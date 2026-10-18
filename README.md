@@ -24,12 +24,12 @@ section in `docs/model/model.md`, and every number quoted in the documents comes
 
 | Section | What it covers |
 | --- | --- |
-| [The problem in one picture](#the-problem-in-one-picture) | The two markets, the battery, the wear, and the three consequences that shape the model |
+| [The problem](#the-problem) | The two markets, the battery, the wear, and the three consequences that shape the model |
 | [Running it](#running-it) | Install with uv, the two commands, every flag, the search scripts, the dev loop |
 | [Where to read what](#where-to-read-what) | The documents, in reading order, with what each one answers |
 | [Layout](#layout) | What lives in each directory |
 
-## The problem in one picture
+## The problem
 
 The battery buys and sells in two markets. Market 1 settles every half hour; Market 2 settles hourly, so anything committed to it is committed for the whole hour. Energy is lost on the way in and on the way out, and every MWh pushed through wears the asset out a little.
 
