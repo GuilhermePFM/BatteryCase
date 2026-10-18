@@ -25,7 +25,7 @@ section in `docs/model/model.md`, and every number quoted in the documents comes
 | Section | What it covers |
 | --- | --- |
 | [The problem](#the-problem) | The two markets, the battery, the wear, and the three consequences that shape the model |
-| [Running it](#running-it) | Install with uv, the two commands, every flag, the search scripts, the dev loop |
+| [Running it](#running-it) | Install with uv, the two commands, every flag, the search scripts, reproducing every figure, the dev loop |
 | [Where to read what](#where-to-read-what) | The documents, in reading order, with what each one answers |
 | [Layout](#layout) | What lives in each directory |
 
@@ -104,6 +104,26 @@ uv run python scripts/compare_searches.py 30    # one instance, against an exact
 uv run python scripts/sweep_searches.py         # 1 to 90 days, both methods side by side
 ```
 
+Every figure the documents quote comes from one of these runs, and one command
+runs all of them:
+
+```bash
+make results-list         # the stages, what each one feeds, what each one costs
+make results              # re-run every measurement in the docs (~2 h)
+make results-quick        # the same path over short horizons (~10 min), CSVs kept aside
+```
+
+`make results` walks the stages in reading order — the headline dispatch, the
+figures read off its plan, both search methods over every horizon, the
+tolerance table, and the one-shot MILPs behind `tractability.md` — rewriting
+`docs/model/*.csv` and teeing every stage to `data/results/reproduce/`. One
+stage at a time works too:
+
+```bash
+uv run python scripts/reproduce_docs.py dispatch results   # just the headline figures
+uv run python scripts/reproduce_docs.py --dry-run          # print the commands, run nothing
+```
+
 Development:
 
 ```bash
@@ -166,7 +186,8 @@ data/results/       model outputs
 docs/brief/         the exercise brief, as supplied
 docs/model/         the formulation, plus the solver experiments behind it
 notebooks/          exploratory analysis
-Makefile            render targets for the model document
+scripts/            the measurement runs behind the documents (`make results`)
+Makefile            render targets for the documents, and `make results`
 ```
 
 ---

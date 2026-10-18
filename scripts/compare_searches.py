@@ -65,12 +65,12 @@ if days <= EXACT_LIMIT_DAYS:
 
 for name, search in SEARCHES.items():
     started = time.perf_counter()
-    result = search.price(CycleOracle(settlement=settlement, params=params))
+    result = search.search(CycleOracle(settlement=settlement, params=params))
     seconds = time.perf_counter() - started
 
-    bound = f"{result.bound.value:,.2f}" if result.bound else "—"
+    bound = f"{result.bound.lagrangian:,.2f}" if result.bound else "—"
     gap = f"{result.bound.relative_gap:.3%}" if result.bound else "—"
     print(
-        f"{name:<16}{result.passes:>8d}{seconds:>10.1f}{result.price:>12,.2f}"
+        f"{name:<16}{result.passes:>8d}{seconds:>10.1f}{result.cycle_value:>12,.2f}"
         f"{result.profit:>12,.2f}{bound:>12}{gap:>9}"
     )

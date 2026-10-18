@@ -19,7 +19,11 @@ uv run battery-case dispatch --search bisection      # the reference method
 uv run python scripts/compare_searches.py 30        # every method on one instance
 uv run python scripts/sweep_searches.py            # every method, 1 to 90 days
 uv run python scripts/sweep_searches.py 365 all --search cutting-plane --no-exact
+uv run python scripts/tolerance_sweep.py 30         # what the tolerance buys, §2
 ```
+
+Every table below is re-run by `make results` (`uv run python
+scripts/reproduce_docs.py --list` for the stages one by one).
 
 Everything below is measured by that script and by `tests/test_cycle_value.py`. One
 *pass* means one full rolling run over the instance: 1,096 window MILPs on the
@@ -181,7 +185,9 @@ anything the relaxation admits.
 ### The pass count is a choice, not a constant
 
 Bisection always spends `1 + 12`. The cutting-plane method stops on a measured
-gap, so the tolerance buys the passes. On the 30-day instance:
+gap, so the tolerance buys the passes. On the 30-day instance, from
+[`scripts/tolerance_sweep.py`](../../scripts/tolerance_sweep.py), raw numbers in
+[`cycle-value-tolerance.csv`](cycle-value-tolerance.csv):
 
 | Tolerance | Passes | λ | Profit | Bound | Relative gap |
 | --: | --: | --: | --: | --: | --: |

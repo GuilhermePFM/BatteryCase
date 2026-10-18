@@ -24,7 +24,10 @@ cycle budget:
 | Profit per cycle spent | £60.23 |
 
 Reproduce with `uv run battery-case dispatch`, which writes the half-hourly
-plan every figure above is read off.
+plan every figure above is read off; the figures in the reading below are
+re-derived from that plan by
+[`scripts/results_figures.py`](../../scripts/results_figures.py), and both
+stages run together as `make results`.
 
 ### Reading the result
 

@@ -159,18 +159,18 @@ for days in days_to_sweep:
     for name in searches_to_run:
         prefix = PREFIXES[name]
         started = time.perf_counter()
-        result = SEARCHES[name].price(CycleOracle(settlement=settlement, params=params))
+        result = SEARCHES[name].search(CycleOracle(settlement=settlement, params=params))
         seconds = round(time.perf_counter() - started, 1)
         row[f"{prefix}_passes"] = result.passes
         row[f"{prefix}_seconds"] = seconds
-        row[f"{prefix}_lambda"] = round(result.price, 2)
+        row[f"{prefix}_lambda"] = round(result.cycle_value, 2)
         row[f"{prefix}_profit_gbp"] = round(result.profit, 2)
-        bound = None if result.bound is None else round(result.bound.value, 2)
+        bound = None if result.bound is None else round(result.bound.lagrangian, 2)
         gap = None if result.bound is None else round(100 * result.bound.relative_gap, 4)
         row[f"{prefix}_bound_gbp"] = bound
         row[f"{prefix}_gap_pct"] = gap
         line += (
-            f"{result.passes:>10}{result.price:>9.2f}{result.profit:>13,.2f}"
+            f"{result.passes:>10}{result.cycle_value:>9.2f}{result.profit:>13,.2f}"
             f"{'—' if bound is None else format(bound, ',.2f'):>13}"
             f"{'—' if gap is None else format(gap, '.3f') + '%':>10}{seconds:>10.1f}"
         )

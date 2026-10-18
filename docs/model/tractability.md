@@ -10,7 +10,11 @@ once, with no decomposition and no cycle value:
 
 ```
 uv run python scripts/solve_exact.py <days> <time_limit_seconds>   # 0 days = the whole horizon
+uv run python scripts/solve_exact.py 30 300 --csv docs/model/tractability.csv
 ```
+
+`--csv` records the row in the table below, one row per window length; the whole
+table is re-run by `make results` (stages `tractability` and `monolith`).
 
 Measured on this machine (HiGHS 1.15.1 in process, single worker, 20 threads
 available). Raw numbers in [`tractability.csv`](tractability.csv).
