@@ -20,7 +20,7 @@ cycle budget:
 | Energy delivered | 13,083 MWh at a mean £54.61/MWh |
 | Equivalent full cycles | 3,443 of 5,000 |
 | Storage volume at the end | 3.86 MWh, from 4.00 nominal |
-| Periods charging / discharging / idle | 16,778 / 15,181 / 20,649 of 52,608 |
+| Periods charging / discharging / idle | 16,779 / 15,182 / 20,647 of 52,608 |
 | Profit per cycle spent | £60.23 |
 
 Reproduce with `uv run battery-case dispatch`, which writes the half-hourly
@@ -34,7 +34,7 @@ stages run together as `make results`.
 **The markets are used as a pair, not interchangeably.** Market 2 is dearer
 than Market 1 in 77.5% of periods, by £3.51/MWh on average, and the plan
 takes that: of the 14,497 MWh bought, 11,210 is bought in Market 1, and of the
-13,083 MWh delivered, 11,174 goes into Market 2. Part of the profit is
+13,083 MWh delivered, 11,173 goes into Market 2. Part of the profit is
 arbitrage over time, part is the standing gap between the two markets, and the
 hourly commitment of §4.5 is what the second part is paid for bearing.
 
@@ -66,6 +66,6 @@ two are the same order of magnitude is the sanity check on the result.
 
 **What capex and opex would do to it.** Excluded from the objective per §5, but
 for context: £207,365 of trading profit over three years against £500,000 capex
-and £5,000/year fixed opex leaves the asset £307,635 short of paying for itself
+and £5,000/year fixed opex leaves the asset £307,638 short of paying for itself
 on this data, before any revenue stream other than wholesale arbitrage.
 

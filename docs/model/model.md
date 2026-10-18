@@ -307,10 +307,10 @@ solved as a sequence of many small programs rather than one large one.
 
 Posed whole, the program carries one binary $u(t)$ for each of the 52,608
 periods. Solve time grows steeply, and erratically, with the window length: on
-this data a day solves in about 0.04 s and two days in 0.2 s, but a week takes
-around 3 s and a fortnight anywhere from 5 s to 17 s depending on which
-fortnight it is. The cliff sits between 30 and 60 days: a month solves to
-proven optimality in 30 s, two months could not be proved in 900 s. Posed whole,
+this data a day solves in under 0.1 s and two days in 0.3 s, but a week takes
+around 2.5 s and a fortnight around 10 s. A month is proved optimal in 23 s and
+two months in 173 s — though that last figure is the unstable one, an earlier
+run of the same instance having failed to prove it inside 900 s. Posed whole,
 the program is 315,649 rows, 368,256 columns and 52,608 binaries; given an hour,
 HiGHS never left the root node, returning a feasible plan worth
 £204,077.77 against a dual bound of £208,209.57, a 2.02% gap and £3,287 worse
@@ -519,10 +519,10 @@ One day of lookahead is sufficient on this data. Over June 2018:
 
 | Committed | Lookahead | Profit | Cycles |
 | --- | --- | --- | --- |
-| 1 day | none | £4,589 | 78.4 |
-| 1 day | 1 day | £4,621 | 79.2 |
-| 1 day | 2 days | £4,621 | 79.2 |
-| 7 days | 1 day | £4,621 | 79.2 |
+| 1 day | none | £4,753 | 80.5 |
+| 1 day | 1 day | £4,785 | 81.4 |
+| 1 day | 2 days | £4,785 | 81.4 |
+| 7 days | 1 day | £4,785 | 81.4 |
 
 Deciding each day blind to the next costs 0.7%, and nothing is gained past the
 first day of lookahead: *committing a whole week at a time reaches the same

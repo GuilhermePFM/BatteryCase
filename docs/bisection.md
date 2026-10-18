@@ -48,25 +48,25 @@ budget:
 
 | λ (£/cycle) | Cycles used | Spent by day 1 | Gross profit | Regime |
 | --- | --: | --: | --: | --- |
-| 0 … 294 | 1.0000 | 0.2375 | £1,165.04 | budget spent in full, on the wrong days |
+| 0 … 295 | 1.0000 | 0.4750 | £894.29 | budget spent in full, on the wrong days |
 | 296 … 1,435 | 1.0000 | 0 | £1,435.79 | budget spent in full, on the best spread |
-| 1,440 and up | 0.0000 | 0 | £0.00 | too dear to trade at all |
+| 1,436 and up | 0.0000 | 0 | £0.00 | too dear to trade at all |
 
 ```mermaid
 flowchart LR
-    Z["<b>λ = 0 … £294</b><br/>cycles used: 1.0<br/>day 1 takes 0.24<br/>£1,165"]
+    Z["<b>λ = 0 … £295</b><br/>cycles used: 1.0<br/>day 1 takes 0.48<br/>£894"]
     M["<b>λ = £296 … £1,435</b><br/>cycles used: 1.0<br/>day 1 declines<br/><b>£1,436 · the plateau</b>"]
-    H["<b>λ ≥ £1,440</b><br/>cycles used: 0<br/>nothing trades<br/>£0"]
+    H["<b>λ ≥ £1,436</b><br/>cycles used: 0<br/>nothing trades<br/>£0"]
 
-    Z -->|"£295: the modest day<br/>is priced out"| M
+    Z -->|"£296: the modest day<br/>is priced out"| M
     M -->|"£1,436: the dear day<br/>is priced out too"| H
 
     M -.-> T["<b>bisection targets here</b><br/>the top of the plateau<br/>λ = £1,435.55"]
 ```
 
 The two thresholds are the two days' marginal cycle values, and they are
-visible to the pound: between £294 and £296 the modest day stops trading, and
-between £1,435 and £1,440 the dear day does too. The middle column shows that
+visible to the pound: between £295 and £296 the modest day stops trading, and
+between £1,435 and £1,436 the dear day does too. The middle column shows that
 **cycle use alone cannot tell a good allocation from a bad one**, the budget
 being spent in full on both sides of £295. What improves with λ is *where* it is
 spent. The search therefore aims at the top of the plateau, the **highest λ at
@@ -121,7 +121,7 @@ on **£1,435.55**. The step is what it is working against — every probe above 
 returns 0 cycles and £0, every probe below returns the identical £1,435.79
 plan — so only the first two iterations change the answer and the remaining
 ten buy confidence that the price sits at the top of the plateau. Gross profit
-over the three days is £1,165.04 at zero cycle value against £1,435.79 with the
+over the three days is £894.29 at zero cycle value against £1,435.79 with the
 cycle value applied, for the same single cycle.
 
 > [!WARNING]

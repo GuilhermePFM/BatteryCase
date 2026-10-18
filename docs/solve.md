@@ -135,9 +135,9 @@ On this data, yes. June 2018:
 
 | Configuration | Profit | Against the 1d + 1d baseline |
 | --- | --: | --- |
-| commit 1 day, **no** lookahead | | −0.7% |
-| commit 1 day, 1 day lookahead | £4,621 | baseline |
-| commit 1 week, 1 day lookahead | £4,621 | identical, to the penny |
+| commit 1 day, **no** lookahead | £4,753 | −0.7% |
+| commit 1 day, 1 day lookahead | £4,785 | baseline |
+| commit 1 week, 1 day lookahead | £4,785 | identical, to the penny |
 
 Deciding each day completely blind to the next costs 0.7%, and committing a
 whole week at a time earns *exactly* the same. The state of charge a 4 MWh store

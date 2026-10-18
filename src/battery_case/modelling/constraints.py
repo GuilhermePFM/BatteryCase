@@ -121,10 +121,13 @@ def hourly_commitment(problem: pulp.LpProblem, ctx: ModelContext) -> None:
 def cycle_life_cap(problem: pulp.LpProblem, ctx: ModelContext) -> None:
     """§4.6 cycle life.
 
-    The cap is already the upper bound of every ``n_cyc(t)`` variable, which is
-    the same constraint: n_cyc is non-decreasing, so the two forms are
-    equivalent while the budget is one number for the whole horizon. This row is
-    redundant, and kept so a solver log naming it points at the section.
+    This row is the *only* thing imposing the budget. Bounding every
+    ``n_cyc(t)`` by ``cycle_budget`` would describe the same feasible set — the
+    count is non-decreasing, so capping the last period caps them all — but
+    :meth:`DispatchVariables.declare` deliberately leaves ``n_cyc`` free of an
+    upper bound, so that dropping this block really relaxes the budget rather
+    than leaving a variable bound to enforce it. See
+    :data:`UNCAPPED_BLOCKS` and the Lagrangian relaxation of §6.
     """
     problem += ctx.var.n_cyc[-1] <= ctx.params.cycle_budget, "cycle_life"
 

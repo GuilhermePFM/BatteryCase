@@ -70,9 +70,9 @@ lookahead.
 
 ```mermaid
 flowchart LR
-    subgraph A["λ = 0 · £1,165 · budget spent before the good day arrives"]
+    subgraph A["λ = 0 · £894 · budget spent before the good day arrives"]
         direction LR
-        A1["day 1 · spread £100<br/><b>0.24 cycles</b><br/>£70"] --> A2["day 2 · spread £100<br/>spends 0<br/>—"] --> A3["day 3 · spread £400<br/>only 0.76 cycles left<br/>£1,095"]
+        A1["day 1 · spread £100<br/><b>0.475 cycles</b><br/>£141"] --> A2["day 2 · spread £100<br/>spends 0<br/>—"] --> A3["day 3 · spread £400<br/>only 0.525 cycles left<br/>£754"]
     end
     subgraph B["λ = £1,436 · £1,436 · budget held, then spent where it pays most"]
         direction LR
@@ -82,7 +82,7 @@ flowchart LR
 ```
 
 Both runs spend the full 1.0-cycle budget and both respect the cap. Only the
-*allocation* differs: £1,165 becomes £1,436 for the same single cycle.
+*allocation* differs: £894 becomes £1,436 for the same single cycle.
 
 > [!NOTE]
 > **A binding cap does not imply that a cycle value helps.** Valuing can only move
@@ -226,7 +226,7 @@ Under the pro-rated 1,500-cycle budget from §5
 (`ModelParameters.prorated_cycle_budget()`) it binds, 3,443 unrationed use
 against 1,500 available, and `λ` becomes active. What it is worth over the whole
 three years is **not measured against a truth**: the run itself is cheap enough
-— ten passes, 12 min 49 s with cutting planes — but nothing at that size can be
+— ten passes, 12 min 44 s with cutting planes — but nothing at that size can be
 solved exactly to check it. It *is* checked on shorter instances with the budget
 halved, against the exact answer. On 30 days of real prices the shadow
 price is £28.85 a cycle and both methods land within 0.05% of an exactly solved

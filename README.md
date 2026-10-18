@@ -127,7 +127,7 @@ uv run python scripts/reproduce_docs.py --dry-run          # print the commands,
 Development:
 
 ```bash
-uv run pytest             # 64 tests, ~10 s
+uv run pytest             # 118 tests, ~50 s
 uv run mypy               # strict
 uv run ruff check . --fix
 uv run ruff format .
@@ -174,13 +174,13 @@ flowchart TD
 | [`docs/model/cycle-value-experiments.md`](docs/model/cycle-value-experiments.md) | Why a capped pass has no usable gradient, and both search methods measured against exactly solved instances: passes, λ, profit and the dual bound. |
 | [`docs/model/tractability.md`](docs/model/tractability.md) | Solve time against window length, and the whole horizon as one MILP: the measurements behind decomposing it. |
 | [`docs/glossary.md`](docs/glossary.md) | Every term the model, the code and the write-up use, the one word chosen for each idea, and the renames that choice implied. |
-| [`docs/validation.md`](docs/validation.md) | The 64 tests, what checking found that thinking had not, and the questions still open. |
+| [`docs/validation.md`](docs/validation.md) | The 118 tests, what checking found that thinking had not, and the questions still open. |
 
 ## Layout
 
 ```
 src/battery_case/   the package, described in docs/architecture.md
-tests/              64 tests, described in docs/validation.md
+tests/              118 tests, described in docs/validation.md
 data/raw/           the two spreadsheets supplied with the exercise
 data/results/       model outputs
 docs/brief/         the exercise brief, as supplied
@@ -192,5 +192,7 @@ Makefile            render targets for the documents, and `make results`
 
 ---
 
-Figures come from `data/results/dispatch_plan.csv`, reproduced identically
-across two independent full-horizon runs.
+Figures come from `data/results/dispatch_plan.csv`. Profit reproduces to the
+penny across independent full-horizon runs; the period counts can move by one or
+two of 52,608, where a tie between an idle period and a near-zero trade is
+broken differently.

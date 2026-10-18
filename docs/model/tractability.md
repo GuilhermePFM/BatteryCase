@@ -24,17 +24,27 @@ available). Raw numbers in [`tractability.csv`](tractability.csv).
 | Window | Periods | Binaries | Result | Solve time |
 | --- | --- | --- | --- | --- |
 | 1 day | 48 | 48 | optimal | < 0.1 s |
-| 2 days | 96 | 96 | optimal | 0.2 s |
-| 4 days | 192 | 192 | optimal | 1.7 s |
-| 7 days | 336 | 336 | optimal | 3.4 s |
-| 14 days | 672 | 672 | optimal | 5.0 s |
-| 30 days | 1,440 | 1,440 | optimal | 30.1 s |
-| 60 days | 2,880 | 2,880 | **time limit, no proof** | 900 s, stopped |
+| 2 days | 96 | 96 | optimal | 0.3 s |
+| 4 days | 192 | 192 | optimal | 0.5 s |
+| 7 days | 336 | 336 | optimal | 2.5 s |
+| 14 days | 672 | 672 | optimal | 9.6 s |
+| 30 days | 1,440 | 1,440 | optimal | 23.3 s |
+| 60 days | 2,880 | 2,880 | optimal | 173.1 s |
 
-The growth is steep and not smooth. 14 days is only half again as slow as 7, and
-30 days is six times slower than 14. The cliff for this formulation sits between
-30 and 60 days: a two-month window could not be proved optimal in fifteen minutes.
-1,096 days is thirty-six times further out than the last window that solved.
+The growth is steep and not smooth: 7 days to 14 nearly quadruples the time,
+14 to 30 only doubles it, and 30 to 60 multiplies it by seven. Every window up
+to two months is proved optimal, the longest of them in under three minutes,
+and 1,096 days is eighteen times further out than that.
+
+> [!WARNING]
+> **The 60-day cell is not stable across runs.** An earlier run of this same
+> table, on this same machine and data, stopped the 60-day window at its 900 s
+> limit with no proof and an incumbent of £12,948.07 — £7.40 below the optimum
+> above. Re-running it proved optimality in 173.1 s. Nothing about the instance
+> changed; branch and bound simply found a different route through it. Read the
+> shorter rows as reliable and this one as a coin toss between "a few minutes"
+> and "longer than you will wait", which is itself the argument against building
+> the horizon out of windows this size.
 
 ## The whole horizon in one program
 
