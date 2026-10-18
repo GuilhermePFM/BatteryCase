@@ -93,12 +93,16 @@ Two things the argument does not give, and both shape the algorithm:
   commits, so it changes the state handed to the next one, and the later
   windows' feasible sets are then no longer the fixed set the exchange argument
   needs. Total use over the horizon is monotone in `λ` *empirically* on this
-  data, which is the assumption bisection rests on
-  ([what this method does not give you](#the-measured-trace-iteration-by-iteration)).
+  data, which is the assumption bisection rests on — see the caveats closing
+  [the search](#how-λ-is-found-bisection-on-the-price-of-a-cycle).
 
-This page is about that method, which is the default. A second one, Kelley's
-cutting planes on the dual of §6, sits beside it behind the same seam, costs
-about half the passes and returns a bound on the answer. It is measured against this one in
+This page is about that search, which is the easiest way to see what `λ` *is*:
+one bit per pass, and no theory beyond monotonicity. It is not the default. The
+default is Kelley's cutting planes on the dual of §6, which sits behind the same
+seam, costs about half the passes, and returns a bound on the answer where this
+method certifies nothing. Bisection is kept as the reference: a second
+algorithm, on a different subproblem, that the default can be checked against at
+horizons no exact solve can reach. Both are measured in
 [pricing experiments](model/cycle-price-experiments.md), and the seam is described in
 [architecture §4](architecture.md#4-how-to-obtain-the-lagrangian-price-cutting-planes-and-bissection).
 
@@ -233,30 +237,16 @@ Four details that matter more than the bisection itself:
   £5,000 range. Any λ inside the plateau yields the *same schedule*, so
   precision in λ is worth nothing beyond landing in the right band.
 
-### The measured trace, iteration by iteration
+### What the trace looks like
 
-| # | low | high | λ probed | Cycles | Gross profit | Verdict |
-| --- | --: | --: | --: | --: | --: | --- |
-| probe | — | — | 0.00 | 1.0000 | 1,165.04 | budget exhausted → it binds, bisect |
-| 1 | 0.00 | 5,000.00 | 2,500.00 | 0.0000 | 0.00 | too dear |
-| 2 | 0.00 | 2,500.00 | 1,250.00 | 1.0000 | 1,435.79 | keep |
-| 3 | 1,250.00 | 2,500.00 | 1,875.00 | 0.0000 | 0.00 | too dear |
-| 4 | 1,250.00 | 1,875.00 | 1,562.50 | 0.0000 | 0.00 | too dear |
-| 5 | 1,250.00 | 1,562.50 | 1,406.25 | 1.0000 | 1,435.79 | keep |
-| 6 | 1,406.25 | 1,562.50 | 1,484.38 | 0.0000 | 0.00 | too dear |
-| 7 | 1,406.25 | 1,484.38 | 1,445.31 | 0.0000 | 0.00 | too dear |
-| 8 | 1,406.25 | 1,445.31 | 1,425.78 | 1.0000 | 1,435.79 | keep |
-| 9 | 1,425.78 | 1,445.31 | **1,435.55** | 1.0000 | 1,435.79 | **keep: the price returned** |
-| 10 | 1,435.55 | 1,445.31 | 1,440.43 | 0.0000 | 0.00 | too dear |
-| 11 | 1,435.55 | 1,440.43 | 1,437.99 | 0.0000 | 0.00 | too dear |
-| 12 | 1,435.55 | 1,437.99 | 1,436.77 | 0.0000 | 0.00 | too dear |
-
-The gross profit column carries the result: £1,165.04 free against £1,435.79
-priced, for the same single cycle. It also shows the bisection working against a
-step. Every "keep" after iteration 2 returns the identical schedule, so
-iterations 5 to 12 buy nothing except confidence that £1,435.55 is the top of
-the plateau, and every probe above the step returns 0 cycles and £0. The
-bisection learns only "too dear", which is all it needs.
+On the three-day instance the probe at `λ = 0` exhausts the budget, so the
+bisection runs: twelve halvings over `[0, 5000]`, each a whole pass, converging
+on **£1,435.55**. The step is what it is working against — every probe above it
+returns 0 cycles and £0, every probe below returns the identical £1,435.79
+schedule — so only the first two iterations change the answer and the remaining
+ten buy confidence that the price sits at the top of the plateau. Gross profit
+over the three days is £1,165.04 unpriced against £1,435.79 priced, for the same
+single cycle.
 
 > [!WARNING]
 > **What this method does not give you.**
@@ -271,11 +261,11 @@ bisection learns only "too dear", which is all it needs.
 > [the cutting-plane method](model/cycle-price-experiments.md) exists for that
 > reason.
 >
-> **Monotonicity is per window, not proven for the composition.** Within one
-> window a higher charge can only reduce cycle use, from a fixed starting
-> state. Across the horizon the handover changes that starting state, so total
-> use is only *empirically* monotone in λ, which is what bisection assumes. It
-> holds on this data as an assumption rather than a theorem.
+> **Monotonicity is per window, not proven for the composition.** The exchange
+> argument [above](#why-cycle-use-falls-as-λ-rises) holds a window's opening
+> state fixed; across the horizon the handover moves with λ, so total use is
+> monotone on this data as an assumption rather than a theorem — and that
+> assumption is what the bisection rests on.
 >
 > **The upper bound can clip silently.** If the budget is still fully spent at
 > `upper_bound`, nothing notices: `low` walks up towards it and a price near the

@@ -14,8 +14,8 @@ cutting-plane method on the Lagrangian dual. Both are implemented
 both are selectable:
 
 ```bash
-uv run battery-case dispatch --cycle-pricer bisection
-uv run battery-case dispatch --cycle-pricer cutting-plane
+uv run battery-case dispatch --cycle-pricer                 # cutting planes, the default
+uv run battery-case dispatch --cycle-pricer bisection      # the reference method
 uv run python scripts/compare_pricers.py 30        # every method on one instance
 uv run python scripts/sweep_pricers.py            # every method, 1 to 90 days
 uv run python scripts/sweep_pricers.py 365 all --pricer cutting-plane --no-exact
@@ -195,7 +195,7 @@ default `1e-4` lands there. The quoted figures move by pennies between runs,
 because every pass is a MILP solved to a feasibility tolerance and a different
 tie broken in one window shifts the last decimal of the dual.
 
-## 3. Why the second method exists at all
+## 3. Why cutting planes is the default
 
 None of the three reasons is profit:
 

@@ -15,6 +15,7 @@ from battery_case.modelling.grid import DispatchGrid, build_grid
 from battery_case.modelling.milp import WindowSolution, solve_window
 from battery_case.modelling.parameters import ModelParameters, prorated_cycle_budget
 from battery_case.modelling.pricers import (
+    DEFAULT_PRICER,
     PRICERS,
     CalibratedDispatcher,
     calibrate_cycle_price,
@@ -25,6 +26,7 @@ from battery_case.modelling.rolling import RollingDispatcher
 from battery_case.modelling.schedule import build_schedule, summarise
 
 __all__ = [
+    "DEFAULT_PRICER",
     "PRICERS",
     "BatteryState",
     "CalibratedDispatcher",

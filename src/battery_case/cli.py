@@ -14,7 +14,12 @@ from battery_case.data_io import load_battery_spec, load_market_prices, price_qu
 from battery_case.data_io.paths import BATTERY_SPEC_XLSX, MARKET_PRICES_XLSX, RESULTS_DIR
 from battery_case.modelling import ModelParameters, RollingDispatcher, build_grid, summarise
 from battery_case.modelling.grid import DispatchGrid
-from battery_case.modelling.pricers import PRICERS, CalibratedDispatcher, pricer_named
+from battery_case.modelling.pricers import (
+    DEFAULT_PRICER,
+    PRICERS,
+    CalibratedDispatcher,
+    pricer_named,
+)
 from battery_case.modelling.rolling import PERIODS_PER_DAY
 
 
@@ -52,10 +57,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     dispatch.add_argument(
         "--cycle-pricer",
+        nargs="?",
+        const=DEFAULT_PRICER,
         choices=sorted(PRICERS),
         help=(
             "Search for the cycle charge instead of taking --cycle-price, "
-            "by this method (§6). Costs one pass over the horizon per step"
+            f"by this method (§6, default: {DEFAULT_PRICER}). "
+            "Costs one pass over the horizon per step"
         ),
     )
     dispatch.add_argument(

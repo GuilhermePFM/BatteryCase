@@ -3,6 +3,10 @@
 :data:`PRICERS` is the catalogue: one entry per method, keyed by the name the
 CLI accepts. The key *is* the name — no method carries a name of its own —
 so the registry is the single place a method is announced.
+:data:`DEFAULT_PRICER` names the one used when a caller asks for a priced run
+without saying which method: cutting planes, which costs fewer passes and
+returns a dual bound, where bisection reads one bit per pass and certifies
+nothing.
 
 :class:`CalibratedDispatcher` adapts a pricer to the ``Dispatcher`` protocol, so
 that a priced run is still "prices in, schedule out" as far as
@@ -26,9 +30,12 @@ from battery_case.modelling.rolling import RollingDispatcher
 
 #: The pricing methods, by the name the CLI takes. See §6 for both.
 PRICERS: dict[str, CyclePricer] = {
-    "bisection": BisectionPricer(),
     "cutting-plane": CuttingPlanePricer(),
+    "bisection": BisectionPricer(),
 }
+
+#: The method a priced run uses when none is named (§6).
+DEFAULT_PRICER = "cutting-plane"
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,7 +49,7 @@ class CalibratedDispatcher:
     on the instance.
     """
 
-    pricer: CyclePricer = PRICERS["bisection"]
+    pricer: CyclePricer = PRICERS[DEFAULT_PRICER]
     dispatcher: RollingDispatcher = field(default_factory=RollingDispatcher)
 
     def run(self, spec: BatterySpec, prices: MarketPrices) -> pd.DataFrame:
@@ -67,11 +74,11 @@ def calibrate_cycle_price(
 ) -> tuple[float, pd.DataFrame]:
     """Find the charge per cycle that rations a binding cycle budget, by bisection.
 
-    Kept as the narrow door the §6 narrative and its tests already use:
-    :class:`~battery_case.modelling.bisection.BisectionPricer` behind the
-    signature this project had before the methods became interchangeable. New
-    callers should go through :data:`PRICERS` or
-    :class:`CalibratedDispatcher`, which can also return a dual bound.
+    The narrow door onto
+    :class:`~battery_case.modelling.bisection.BisectionPricer`, for a caller
+    that wants that method and nothing else from the seam. A priced run should
+    go through :data:`PRICERS` or :class:`CalibratedDispatcher` instead, which
+    default to :data:`DEFAULT_PRICER` and can return a dual bound.
     """
     pricer = BisectionPricer(
         upper_bound=upper_bound, tolerance=tolerance, max_iterations=max_iterations

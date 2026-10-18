@@ -490,10 +490,11 @@ approximates, so a bound quoted from decomposed evaluations is sound only as far
 as that approximation holds.
 
 Both methods are implemented and both are selectable with
-`battery-case dispatch --cycle-pricer {bisection,cutting-plane}`. They share one
-evaluation oracle and differ in the subproblem they ask it for: bisection reads
-one bit from a *capped* pass, the cutting-plane method a value and a subgradient
-from a *relaxed* one. The reason a capped pass admits no usable subgradient, the
+`battery-case dispatch --cycle-pricer {cutting-plane,bisection}`, cutting planes
+being the default: it costs fewer passes and returns the bound above. They share
+one evaluation oracle and differ in the subproblem they ask it for: bisection
+reads one bit from a *capped* pass, the cutting-plane method a value and a
+subgradient from a *relaxed* one. The reason a capped pass admits no usable subgradient, the
 measured comparison of the two against exactly solved instances, and the
 validation of the bound are in
 [`cycle-price-experiments.md`](cycle-price-experiments.md); the architecture

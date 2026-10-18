@@ -85,7 +85,7 @@ uv run battery-case dispatch --start 2018-01-01 --end 2018-01-31
 | `--commit-days` | `1` | How much of each solved window is kept |
 | `--lookahead-days` | `1` | Foresight beyond the committed part, then discarded |
 | `--cycle-price` | `0.0` | £ charged per equivalent full cycle used |
-| `--cycle-pricer` | none | Search for that charge instead, by `bisection` or `cutting-plane` (§6) |
+| `--cycle-pricer` | none | Search for that charge instead (§6). Bare, or `cutting-plane`, uses cutting planes; `bisection` selects the reference method |
 | `--out` | `data/results/dispatch_schedule.csv` | `.csv` or `.parquet` |
 
 The cycle budget only needs a charge when it binds, and on the full 5,000-cycle budget it does not, so `--cycle-pricer` costs one pass and returns zero. It matters under the pro-rated budget of §5. Compare the two methods on one instance with:
