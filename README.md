@@ -86,6 +86,16 @@ uv run battery-case dispatch --start 2018-01-01 --end 2018-01-31
 | `--lookahead-days` | `1` | Foresight beyond the committed part, then discarded |
 | `--search` | `cutting-plane` | Method that values the cycle budget (§6); `bisection` selects the reference method |
 | `--out` | `data/results/dispatch_plan.csv` | `.csv` or `.parquet` |
+| `--progress` | `auto` | How the run reports itself on stderr: `console` for the live display, `plain` for one log line per event, `json` for JSON lines, `none` for silence. `auto` reads the terminal |
+| `--quiet` | off | Results only; shorthand for `--progress none` |
+
+A run reports itself in phases — inputs, horizon, calibrate, recover — and keeps
+one table row per pass of the cycle-value search, so a converging run looks
+different from a stuck one while it is still going. Results go to stdout and
+progress to stderr, so `uv run battery-case dispatch > summary.txt` still
+captures the answer, and a redirected run drops the live display for timestamped
+lines on its own. `--progress json` emits the same events as JSON lines, which
+is enough to plot a run's convergence without solving it again.
 
 The cycle budget only needs a cycle value when it binds, and on the full 5,000-cycle budget it does not, so the search costs one pass and returns zero. It matters under the pro-rated budget of §5. Compare the two methods on one instance with:
 

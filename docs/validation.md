@@ -32,7 +32,8 @@ uv run pytest        # 64 tests, ~10 s. The MILP tests need no spreadsheet,
 | `test_data_io.py` | 4 | The spec against Attachment 1, both series at their native resolutions, the clock-change artefacts flagged |
 | `test_constraints.py` | 13 | Each constraint block against the rows it adds, without a solver: the named rows per period, §4.5 tying only the second half of each hour, the opening state read only in period 0, `DEFAULT_BLOCKS` accounting for every row the assembled model holds, and §4.6's cap imposed as a row with `n_cyc` left free, so that it can be relaxed |
 | `test_cycle_value.py` | 14 | The two cycle-budget searches of §6: that a relaxed pass really overspends the budget and a capped one reports no usable slope, that the oracle counts and reuses its passes, the master LP's envelope minimum against cuts whose answer is known on paper, both methods reaching the same plan, and the dual bound holding above an exactly solved optimum |
-| `test_cli.py` | 2 | Both commands end to end, including the written plan's dates and length |
+| `test_cli.py` | 4 | Both commands end to end, including the written plan's dates and length, and that the result stays on stdout under every progress mode |
+| `test_reporting.py` | 18 | What a run says while it runs: that a search is silent unless asked, that each method fills its own columns and bisection quotes no bound, that the early exit and both recovery outcomes are announced, that a cache hit is reported as one, that a redirected stream gets no cursor control, and the pass projection from a contracting gap |
 
 A strict `mypy` pass and `ruff` run alongside.
 
