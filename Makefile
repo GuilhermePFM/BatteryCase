@@ -6,15 +6,48 @@ STOCH      := docs/model/model-stochastic.md
 STOCH_HTML := docs/model/model-stochastic.html
 STOCH_PDF  := docs/model/model-stochastic.pdf
 
-PANDOC_FLAGS := --standalone --metadata pagetitle="Battery dispatch model"
-STOCH_FLAGS  := --standalone --metadata pagetitle="Battery dispatch under stochastic prices"
+BOTH_PDF   := docs/model/battery-dispatch.pdf
 
-.PHONY: html preview pdf html-stochastic preview-stochastic pdf-stochastic clean-docs
+LATEX_DIR  := docs/model/latex
+FIGURES    := docs/model/figures/cutting-plane.png
+
+## Image paths in the notes are relative to the note, as GitHub reads them;
+## pandoc resolves them against the working directory unless told otherwise.
+RESOURCES    := --resource-path=docs/model
+PANDOC_FLAGS := --standalone $(RESOURCES) --metadata pagetitle="Battery dispatch model"
+STOCH_FLAGS  := --standalone $(RESOURCES) --metadata pagetitle="Battery dispatch under stochastic prices"
+
+## PDFs go through LaTeX as articles: pandoc's default template, a typographic
+## preamble, and a Lua filter that turns a Markdown note into an article body
+## (drops the title heading and the manual section numbers, which LaTeX then
+## assigns itself, so the "§4.2" references in the prose still match).
+## The stochastic note draws its scenario tree with box-drawing characters,
+## which Latin Modern Mono does not carry. Use a Unicode mono font when the
+## machine has one; without it the build still succeeds, with a warning and a
+## few missing glyphs in that one code block.
+MONOFONT := $(shell fc-list : family 2>/dev/null | tr ',' '\n' | grep -ixm1 'Noto Sans Mono')
+MONO_OPT := $(if $(MONOFONT),-V monofont="$(MONOFONT)")
+
+ARTICLE_DEPS := $(LATEX_DIR)/common.yaml $(LATEX_DIR)/preamble.tex $(LATEX_DIR)/article.lua
+PANDOC_ARTICLE := pandoc --standalone --pdf-engine=tectonic $(RESOURCES) \
+	--metadata-file=$(LATEX_DIR)/common.yaml \
+	--include-in-header=$(LATEX_DIR)/preamble.tex \
+	--lua-filter=$(LATEX_DIR)/article.lua \
+	--metadata date="$(shell LC_ALL=C date +'%e %B %Y' | sed 's/^ //')" \
+	$(MONO_OPT)
+
+.PHONY: figures html preview pdf pdfs pdf-combined html-stochastic preview-stochastic pdf-stochastic clean-docs
+
+## Redraw the figures the notes embed
+figures: $(FIGURES)
+
+docs/model/figures/cutting-plane.png: scripts/plot_cutting_plane.py
+	uv run python $<
 
 ## Render the model doc to HTML (MathJax, same engine GitHub uses)
 html: $(HTML)
 
-$(HTML): $(MODEL)
+$(HTML): $(MODEL) $(FIGURES)
 	pandoc $< -o $@ $(PANDOC_FLAGS) --mathjax
 
 ## Render and open in the browser; afterwards `make html` + refresh is enough
@@ -23,11 +56,11 @@ $(HTML): $(MODEL)
 preview: $(HTML)
 	setsid -f xdg-open "$(abspath $(HTML))"
 
-## Export a PDF (requires tectonic)
+## Export a PDF, typeset as a LaTeX article (requires tectonic)
 pdf: $(PDF)
 
-$(PDF): $(MODEL)
-	pandoc $< -o $@ $(PANDOC_FLAGS) --toc --pdf-engine=tectonic
+$(PDF): $(MODEL) $(FIGURES) $(ARTICLE_DEPS) docs/model/latex/model.yaml
+	$(PANDOC_ARTICLE) --metadata-file=docs/model/latex/model.yaml $< -o $@
 
 ## The same three targets for the stochastic formulation
 html-stochastic: $(STOCH_HTML)
@@ -40,8 +73,18 @@ preview-stochastic: $(STOCH_HTML)
 
 pdf-stochastic: $(STOCH_PDF)
 
-$(STOCH_PDF): $(STOCH)
-	pandoc $< -o $@ $(STOCH_FLAGS) --toc --pdf-engine=tectonic
+$(STOCH_PDF): $(STOCH) $(ARTICLE_DEPS) docs/model/latex/model-stochastic.yaml
+	$(PANDOC_ARTICLE) --metadata-file=docs/model/latex/model-stochastic.yaml $< -o $@
+
+## Both notes in one article, each as a numbered part
+pdf-combined: $(BOTH_PDF)
+
+$(BOTH_PDF): $(MODEL) $(STOCH) $(FIGURES) $(ARTICLE_DEPS) docs/model/latex/combined.yaml
+	$(PANDOC_ARTICLE) --metadata-file=docs/model/latex/combined.yaml \
+	  --top-level-division=part $(MODEL) $(STOCH) -o $@
+
+## Every PDF: the two notes separately and the two of them together
+pdfs: pdf pdf-stochastic pdf-combined
 
 clean-docs:
-	rm -f $(HTML) $(PDF) $(STOCH_HTML) $(STOCH_PDF)
+	rm -f $(HTML) $(PDF) $(STOCH_HTML) $(STOCH_PDF) $(BOTH_PDF)

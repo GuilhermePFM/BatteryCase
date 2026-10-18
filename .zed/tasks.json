@@ -2,7 +2,9 @@
   {
     "label": "Render model doc",
     "command": "make",
-    "args": ["html"],
+    "args": [
+      "html"
+    ],
     "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": false,
     "allow_concurrent_runs": false,
@@ -11,7 +13,9 @@
   {
     "label": "Preview model doc in browser",
     "command": "make",
-    "args": ["preview"],
+    "args": [
+      "preview"
+    ],
     "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": false,
     "allow_concurrent_runs": false,
@@ -20,7 +24,9 @@
   {
     "label": "Render stochastic model doc",
     "command": "make",
-    "args": ["html-stochastic"],
+    "args": [
+      "html-stochastic"
+    ],
     "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": false,
     "allow_concurrent_runs": false,
@@ -29,7 +35,53 @@
   {
     "label": "Preview stochastic model doc in browser",
     "command": "make",
-    "args": ["preview-stochastic"],
+    "args": [
+      "preview-stochastic"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "no_focus"
+  },
+  {
+    "label": "Export model PDF",
+    "command": "make",
+    "args": [
+      "pdf"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "no_focus"
+  },
+  {
+    "label": "Export stochastic model PDF",
+    "command": "make",
+    "args": [
+      "pdf-stochastic"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "no_focus"
+  },
+  {
+    "label": "Export combined PDF",
+    "command": "make",
+    "args": [
+      "pdf-combined"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "no_focus"
+  },
+  {
+    "label": "Export all PDFs",
+    "command": "make",
+    "args": [
+      "pdfs"
+    ],
     "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": false,
     "allow_concurrent_runs": false,
