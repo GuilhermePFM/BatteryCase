@@ -115,7 +115,7 @@ name is already a *count* of half hours (`PERIODS_PER_DAY`, `commit_periods`,
 
 | Now | Becomes |
 | --- | --- |
-| `--cycle-price` · `--cycle-pricer` | `--cycle-value` · `--search` |
+| `--cycle-price` · `--cycle-pricer` | `--search` (the value is always searched for, never hand-set) |
 | `scripts/compare_pricers.py` · `scripts/sweep_pricers.py` | `compare_searches.py` · `sweep_searches.py` |
 | `scripts/sweep_pricers.py --pricer` | `scripts/sweep_searches.py --search` |
 | `scripts/solve_monolith.py` | `scripts/solve_exact.py` |

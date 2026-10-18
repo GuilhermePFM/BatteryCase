@@ -250,7 +250,7 @@ Lagrangian dual, which costs about half the passes and returns a bound on the
 answer. Both are in the package and both are selectable:
 
 ```bash
-uv run battery-case dispatch --search                 # cutting planes, the default
+uv run battery-case dispatch                         # cutting planes, the default
 uv run battery-case dispatch --search bisection      # the reference method
 uv run python scripts/compare_searches.py 30
 ```

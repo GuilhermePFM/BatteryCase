@@ -84,11 +84,10 @@ uv run battery-case dispatch --start 2018-01-01 --end 2018-01-31
 | `--start` / `--end` | all data | Horizon, trimmed on whole hours |
 | `--commit-days` | `1` | How much of each solved window is kept |
 | `--lookahead-days` | `1` | Foresight beyond the committed part, then discarded |
-| `--cycle-value` | `0.0` | £ charged per equivalent full cycle used |
-| `--search` | none | Search for that charge instead (§6). Bare, or `cutting-plane`, uses cutting planes; `bisection` selects the reference method |
+| `--search` | `cutting-plane` | Method that values the cycle budget (§6); `bisection` selects the reference method |
 | `--out` | `data/results/dispatch_plan.csv` | `.csv` or `.parquet` |
 
-The cycle budget only needs a cycle value when it binds, and on the full 5,000-cycle budget it does not, so `--search` costs one pass and returns zero. It matters under the pro-rated budget of §5. Compare the two methods on one instance with:
+The cycle budget only needs a cycle value when it binds, and on the full 5,000-cycle budget it does not, so the search costs one pass and returns zero. It matters under the pro-rated budget of §5. Compare the two methods on one instance with:
 
 ```bash
 uv run python scripts/compare_searches.py 30    # one instance, against an exact solve

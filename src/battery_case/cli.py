@@ -46,19 +46,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Days of foresight beyond the committed window, then discarded (default: 1)",
     )
     dispatch.add_argument(
-        "--cycle-value",
-        type=float,
-        default=0.0,
-        help="Value of one equivalent full cycle, in GBP, charged to the objective (default: 0)",
-    )
-    dispatch.add_argument(
         "--search",
-        nargs="?",
-        const=DEFAULT_SEARCH,
+        default=DEFAULT_SEARCH,
         choices=sorted(SEARCHES),
         help=(
-            "Search for the cycle value instead of taking --cycle-value, "
-            f"by this method (§6, default: {DEFAULT_SEARCH}). "
+            f"Method that values the cycle budget (§6, default: {DEFAULT_SEARCH}). "
             "Costs one pass over the horizon per step"
         ),
     )
@@ -105,7 +97,6 @@ def _cmd_dispatch(args: argparse.Namespace) -> int:
     policy = RollingPolicy(
         commit_periods=args.commit_days * PERIODS_PER_DAY,
         lookahead_periods=args.lookahead_days * PERIODS_PER_DAY,
-        cycle_value=args.cycle_value,
         on_window=_progress,
     )
 
@@ -116,11 +107,7 @@ def _cmd_dispatch(args: argparse.Namespace) -> int:
         flush=True,
     )
 
-    if args.search:
-        plan = _calibrated_dispatch(args.search, policy, settlement, params)
-    else:
-        plan = policy.dispatch(settlement, params)
-    print(file=sys.stderr)
+    plan = _calibrated_dispatch(args.search, policy, settlement, params)
 
     print("\nResults")
     for field, value in summarise(plan, params).items():
