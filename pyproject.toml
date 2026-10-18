@@ -24,6 +24,7 @@ dev = [
     "pandas-stubs>=2.2",
     "jupyterlab>=4.3",
     "ipykernel>=7.4.0",
+    "seaborn>=0.13.2",
 ]
 
 [build-system]
