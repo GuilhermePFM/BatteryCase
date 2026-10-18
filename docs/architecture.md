@@ -16,6 +16,7 @@ The formulation lives in [`model/model.md`](model/model.md) as numbered sections
 | --- | --- | --- |
 | `modelling/periods.py` | §1, §5 | Both markets on one half-hourly axis |
 | `modelling/parameters.py` | §2 | The spec in the model's units |
+| `modelling/variables.py` | §2, §4.2, §4.6 | The decision variables and the state a window hands on |
 | `modelling/constraints.py` | §3–§4.7 | The objective and the constraints, one block per section |
 | `modelling/window_problem.py` | §3–§4.7 | Assembles, solves and reads back one window's MILP |
 | `modelling/rolling_horizon.py` | §6 | The window sequence covering the horizon |
@@ -58,6 +59,7 @@ src/battery_case/
   modelling/        the dispatch model, section by section of model.md
     periods.py            §1, §5
     parameters.py         §2
+    variables.py          §2, the decision variables and the handover state
     constraints.py        §3–§4.7, one block per section
     window_problem.py     builds, solves and reads back one window
     rolling_horizon.py    §6, the window sequence
@@ -110,7 +112,7 @@ Projects both markets onto one half-hourly axis as three aligned arrays (`timest
 
 The spec in the model's units, built by `from_spec`: percent becomes a fraction, and the cycle budget becomes an explicit input defaulting to the full cycle life. `prorated_cycle_budget()` offers the other reading from §5, three years of a ten-year life being 1,500 cycles, so the assumption is a function argument a reviewer can flip rather than a number buried in a constraint.
 
-**`BatteryState`** · `modelling/constraints.py` · §4.2, §4.6
+**`BatteryState`** · `modelling/variables.py` · §4.2, §4.6
 
 The two numbers a window must hand to the next: `storage_mwh` and `cycles`. A named frozen pair rather than two loose floats, because the correctness of the decomposition rests on whether the handover carries everything the constraints integrate over, and a type makes that question answerable by reading one line. `EMPTY_BATTERY` is the *S*(0) = 0 start of §4.2.
 
@@ -123,7 +125,7 @@ Each constraint is added under a name matching the write-up (`balance_t`, `cycle
 Two formulation choices are visible here: *S*<sub>max</sub>(*t*) is substituted out instead of
 carried as a variable, as §4.7 permits, and the redundant §4.4 capacity constraints are omitted with a comment saying why.
 
-**`ModelContext` · `DispatchVariables`** · `modelling/constraints.py`
+**`ModelContext` · `DispatchVariables`** · `modelling/variables.py` · §2
 
 What a block is allowed to read: the settlement periods, the parameters, the opening state, the variables, and the cycle value. `previous_storage(t)` and `previous_cycles(t)` are the one place that knows period 0 reads the handover and every other period reads *t*-1, a rule that would otherwise be repeated in two blocks. `DispatchVariables` names the seven variable lists, replacing a
 `dict[str, list[LpVariable]]` whose keys callers had to spell correctly.

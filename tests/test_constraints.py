@@ -15,8 +15,6 @@ import pytest
 from battery_case.modelling.constraints import (
     DEFAULT_BLOCKS,
     ConstraintBlock,
-    DispatchVariables,
-    ModelContext,
     cycle_accounting,
     cycle_life_cap,
     energy_balance,
@@ -27,6 +25,7 @@ from battery_case.modelling.constraints import (
 )
 from battery_case.modelling.parameters import ModelParameters
 from battery_case.modelling.periods import SettlementPeriods
+from battery_case.modelling.variables import DispatchVariables, ModelContext
 from battery_case.modelling.window_problem import build_problem
 from tests.helpers import SPEC, make_periods
 

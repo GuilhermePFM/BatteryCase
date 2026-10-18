@@ -20,15 +20,17 @@ import pulp
 
 from battery_case.modelling.constraints import (
     DEFAULT_BLOCKS,
-    EMPTY_BATTERY,
-    BatteryState,
     ConstraintBlock,
-    DispatchVariables,
-    ModelContext,
     profit_objective,
 )
 from battery_case.modelling.parameters import ModelParameters
 from battery_case.modelling.periods import SettlementPeriods
+from battery_case.modelling.variables import (
+    EMPTY_BATTERY,
+    BatteryState,
+    DispatchVariables,
+    ModelContext,
+)
 
 
 @dataclass(frozen=True, slots=True)

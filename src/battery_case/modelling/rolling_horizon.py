@@ -4,7 +4,7 @@ Solving all 52,608 periods in one mixed-integer program is not practical: the
 binary of §4.3 appears in every period, and solve time grows sharply with the
 window length. The horizon is therefore walked in windows that each commit one
 day and look one day further ahead, carrying the storage and the cycle count
-forward (:class:`~battery_case.modelling.constraints.BatteryState`). The
+forward (:class:`~battery_case.modelling.variables.BatteryState`). The
 lookahead is solved and then discarded; it exists so the committed day is not
 decided as if the horizon ended at midnight.
 
@@ -33,10 +33,11 @@ import numpy as np
 import pandas as pd
 
 from battery_case.data_models import BatterySpec, MarketPrices
-from battery_case.modelling.constraints import DEFAULT_BLOCKS, EMPTY_BATTERY, ConstraintBlock
+from battery_case.modelling.constraints import DEFAULT_BLOCKS, ConstraintBlock
 from battery_case.modelling.parameters import ModelParameters
 from battery_case.modelling.periods import PERIODS_PER_HOUR, SettlementPeriods, build_periods
 from battery_case.modelling.plan import build_plan
+from battery_case.modelling.variables import EMPTY_BATTERY
 from battery_case.modelling.window_problem import default_solver, solve_window
 
 #: Periods in a day — the default window and lookahead length.

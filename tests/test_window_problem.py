@@ -8,8 +8,8 @@ import numpy as np
 import pulp
 import pytest
 
-from battery_case.modelling.constraints import BatteryState
 from battery_case.modelling.parameters import ModelParameters
+from battery_case.modelling.variables import BatteryState
 from battery_case.modelling.window_problem import default_solver, solve_window
 from tests.helpers import SPEC, make_periods
 
