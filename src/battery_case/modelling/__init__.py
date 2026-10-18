@@ -6,15 +6,16 @@ The formulation lives in :mod:`~battery_case.modelling.constraints` (§3 to
 :mod:`~battery_case.modelling.rolling_horizon` (§6); the output it produces is
 described by :mod:`~battery_case.modelling.plan`. The cycle budget's value, when
 it binds, is found by one of the methods in
-:mod:`~battery_case.modelling.dual_search`.
+:mod:`~battery_case.modelling.dual_search` and dispatched at by
+:mod:`~battery_case.modelling.calibrated_policy`.
 """
 
+from battery_case.modelling.calibrated_policy import CalibratedPolicy
 from battery_case.modelling.constraints import BatteryState
 from battery_case.modelling.dual_problem import CycleOracle, DualBound, DualSearch, DualSearchResult
 from battery_case.modelling.dual_search import (
     DEFAULT_SEARCH,
     SEARCHES,
-    CalibratedPolicy,
     calibrate_cycle_value,
     search_named,
 )

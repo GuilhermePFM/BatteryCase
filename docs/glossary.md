@@ -48,8 +48,9 @@ invites exactly the wrong reading.
 The names now read the decomposition off a directory listing, smallest scope
 first: `periods.py` the half-hourly axis, `window_problem.py` one MILP over one
 window, `rolling_horizon.py` the sequence of them covering the horizon,
-`dual_problem.py` the subproblem at one cycle value over that whole horizon, and
-`dual_search.py` the methods that choose the next cycle value to try.
+`dual_problem.py` the subproblem at one cycle value over that whole horizon,
+`dual_search.py` the methods that choose the next cycle value to try, and
+`calibrated_policy.py` a search run end to end as a `DispatchPolicy`.
 
 ### The time axis
 

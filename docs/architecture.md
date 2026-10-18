@@ -22,7 +22,8 @@ The formulation lives in [`model/model.md`](model/model.md) as numbered sections
 | `modelling/dual_problem.py` | §6 | The seam: one pass of the horizon, as an oracle |
 | `modelling/bisection.py` | §6 | Finding the cycle value by bisection |
 | `modelling/cutting_plane.py` | §6 | Finding it by cutting planes, with a bound |
-| `modelling/dual_search.py` | §6 | The methods on offer, and the `DispatchPolicy` adapter |
+| `modelling/dual_search.py` | §6 | The methods on offer, by the name that selects one |
+| `modelling/calibrated_policy.py` | §6 | A calibrated run, as a `DispatchPolicy` |
 | `modelling/plan.py` | §7 | The plan and the figures read off it |
 
 One dependency rule holds the package together: **the model cannot read a file, and the loaders cannot model.** `data_models/` imports nothing of ours. `data_io/` and `modelling/` both depend on it and never on each other. `cli.py` is the only module that touches both.
@@ -55,17 +56,18 @@ src/battery_case/
     loaders.py        spreadsheet loaders
     quality.py        the data quality report
   modelling/        the dispatch model, section by section of model.md
-    periods.py          §1, §5
-    parameters.py       §2
-    constraints.py      §3–§4.7, one block per section
-    window_problem.py   builds, solves and reads back one window
-    rolling_horizon.py  §6, the window sequence
-    dual_problem.py     §6, the search seam and its oracle
-    bisection.py        §6, the cycle value by bisection
-    cutting_plane.py    §6, the cycle value by cutting planes
-    dual_search.py      §6, the registry and the DispatchPolicy adapter
-    plan.py             §7
-    policy.py           the DispatchPolicy protocol
+    periods.py            §1, §5
+    parameters.py         §2
+    constraints.py        §3–§4.7, one block per section
+    window_problem.py     builds, solves and reads back one window
+    rolling_horizon.py    §6, the window sequence
+    dual_problem.py       §6, the search seam and its oracle
+    bisection.py          §6, the cycle value by bisection
+    cutting_plane.py      §6, the cycle value by cutting planes
+    dual_search.py        §6, the registry of methods
+    calibrated_policy.py  §6, a calibrated run as a DispatchPolicy
+    plan.py               §7
+    policy.py             the DispatchPolicy protocol
   cli.py            the `battery-case` command
 ```
 
@@ -159,7 +161,7 @@ The seam between the budget's price and the method that finds it, and the catalo
 
 What a search returns. `bound` is `DualBound | None`: bisection reads one bit per pass and has no certificate to give, so the absence is expressed in the type rather than as a sentinel number.
 
-**`CalibratedPolicy`** · `modelling/dual_search.py` · §6
+**`CalibratedPolicy`** · `modelling/calibrated_policy.py` · §6
 
 Values the budget, then dispatches at that value, implementing `DispatchPolicy` while doing it, so `summarise`, the CLI and the notebooks keep their single `run(spec, prices)` seam. `calibrate_and_dispatch` is the wider door for a caller that wants the cycle value, the pass count and the bound as well as the plan.
 
