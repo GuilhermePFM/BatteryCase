@@ -14,6 +14,7 @@ the problem, so this module holds how a window is solved, not what it says.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 import pulp
@@ -117,9 +118,44 @@ def build_problem(
     return problem, ctx.var
 
 
+#: HiGHS settings tuned for a window of this shape, measured in
+#: :doc:`solver-parameter-tunning <../../docs/model/solver-parameter-tunning>`.
+#:
+#: A window is solved at the root: cuts close 99.5% of the integrality gap
+#: before any branching, so the node count is 1 and the default heuristic suite
+#: spends most of each solve hunting an incumbent the bound has already reached.
+#: Switching off the restart, the RINS sub-MIP and the feasibility jump cuts a
+#: full pass over the horizon from 435 s to 176 s. These are settings, not
+#: relaxations: the binaries of §4.3 and every constraint block stay exactly as
+#: they were, and the reference slices of ``tests/test_historical_slices.py``
+#: still reproduce their known optima to 6e-11 relative.
+#:
+#: Two heuristics are deliberately left on, each for its own reason.
+#:
+#: RENS, because the heuristics do not compose: a 2^4 grid over the four of them
+#: puts "all off" at 1.30x against this configuration's 1.82x, the solver still
+#: needing one heuristic to produce the incumbent that lets it stop.
+#:
+#: ``root_reduced_cost``, because switching it off is the one setting measured
+#: here that costs real optimality rather than time. It is worth a further 8%
+#: (1.96x in the grid), but it puts the 2019-05-11 week 1.7e-5 off its known
+#: optimum — outside the 1e-5 those tests allow. Exactness over the last 8%.
+#:
+#: No gap tolerance is set either: ``gapAbs`` buys under 1% more speed once
+#: these are off, and is the other thing that costs money per window.
+TUNED_OPTIONS: dict[str, Any] = {
+    "mip_allow_restart": False,
+    "mip_heuristic_run_rins": False,
+    "mip_heuristic_run_feasibility_jump": False,
+}
+
+
 def default_solver(*, time_limit: float | None = None) -> pulp.LpSolver:
-    """HiGHS, quietly. It ships as a dependency and reads the model in process."""
-    return pulp.HiGHS(msg=False, timeLimit=time_limit)
+    """HiGHS, quietly, with :data:`TUNED_OPTIONS`.
+
+    It ships as a dependency and reads the model in process.
+    """
+    return pulp.HiGHS(msg=False, timeLimit=time_limit, **TUNED_OPTIONS)
 
 
 def _values(variables: list[pulp.LpVariable]) -> np.ndarray:
