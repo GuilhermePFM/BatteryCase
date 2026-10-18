@@ -27,7 +27,14 @@ from battery_case.modelling.cycle_value.oracle import (
     DualPoint,
     DualSearchResult,
 )
-from battery_case.reporting import Column, SearchPlan, passes_phrase
+from battery_case.reporting import (
+    CellValue,
+    Column,
+    Figure,
+    SearchPlan,
+    SearchSummary,
+    passes_phrase,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,9 +70,9 @@ class BisectionSearch:
             max_passes=1 + self.max_iterations,
             passes_known=True,
             columns=(
-                Column("spent?", 7),
-                Column("bracket \u00a3/cycle", 18),
-                Column("width", 8),
+                Column("spent", "spent?", "flag"),
+                Column("bracket", "bracket \u00a3/cycle", "interval"),
+                Column("width", "width", "precise"),
             ),
         )
 
@@ -96,7 +103,7 @@ class BisectionSearch:
                 f"the uncharged plan spends {best.cycles:,.1f} of "
                 f"{oracle.budget:,.0f} cycles, so the budget never binds"
             )
-            reporter.note("cycle value          0.00 \u00a3/cycle")
+            reporter.search_finished(SearchSummary(cycle_value=0.0))
             return _result(0.0, best, oracle)
 
         low, high = 0.0, self.upper_bound
@@ -114,11 +121,22 @@ class BisectionSearch:
             )
 
         reporter.phase("calibrate", "done", f"bracketed \u00b7 {passes_phrase(oracle.passes)}")
-        reporter.note(f"cycle value   {best_cycle_value:>12,.2f} \u00a3/cycle")
-        reporter.note(f"bracket       [{low:,.2f}, {high:,.2f}]  width {high - low:,.3f}")
-        reporter.note(
-            "dual bound    not available \u2014 a capped pass reports one bit, "
-            "not a slope"
+        reporter.search_finished(
+            SearchSummary(
+                cycle_value=best_cycle_value,
+                figures=(
+                    Figure("bracket", (low, high), "interval"),
+                    Figure("width", high - low, "precise"),
+                    # The absence of a bound is a figure in its own right: a
+                    # reader who is not told why there is none assumes a bug.
+                    Figure(
+                        "dual_bound",
+                        None,
+                        "money",
+                        note="a capped pass reports one bit, not a slope",
+                    ),
+                ),
+            )
         )
         return _result(best_cycle_value, best, oracle)
 
@@ -127,19 +145,22 @@ def _cells(
     point: DualPoint,
     spent_in_full: float,
     bracket: tuple[float, float] | None,
-) -> tuple[str, str, str]:
+) -> dict[str, CellValue]:
     """The three columns this method fills, and the one bit it actually reads.
 
     A capped pass can never exceed the budget, so the signed overspend of the
     shared columns is uninformative here; what the method reads is whether the
-    budget was *used up*, which is this ``yes``/``no`` and nothing else.
+    budget was *used up*, which is this one bit and nothing else. Whether that
+    bit is drawn as a tick, a ``yes`` or a ``1`` is not this module's business.
+
+    The probe pass has no bracket yet, which is ``None`` rather than a dash:
+    the renderer knows what an empty cell looks like, and this does not.
     """
-    binding = point.cycles >= spent_in_full
-    spent = "\u2713 yes" if binding else "\u2717 no"
-    if bracket is None:
-        return spent, "binding, proceed" if binding else "not binding", "\u2014"
-    low, high = bracket
-    return spent, f"[{low:>7,.2f},{high:>8,.2f}]", f"{high - low:,.3f}"
+    return {
+        "spent": point.cycles >= spent_in_full,
+        "bracket": bracket,
+        "width": None if bracket is None else bracket[1] - bracket[0],
+    }
 
 
 def _result(cycle_value: float, point: DualPoint, oracle: CycleOracle) -> DualSearchResult:

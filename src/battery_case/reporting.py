@@ -27,6 +27,14 @@ they come off a :class:`~battery_case.modelling.cycle_value.oracle.DualPoint`
 whatever found it. The columns that differ belong to the search, which declares
 them in a :class:`SearchPlan` and fills them per pass, so a renderer can lay out
 cutting planes and bisection without knowing how either method works.
+
+What crosses the seam in either half is a *value*, never a formatted cell. A
+search says ``{"spent": True}`` and names the column's :data:`CellKind`; the
+width, the number format and whether the tick is ``✓`` or ``ok`` are decided
+here, once, on the way out. The same holds for the certificate a search ends
+on: :class:`SearchSummary` carries labelled numbers, so the console can align
+them and :class:`JsonReporter` can hand them back to a sweep, rather than both
+receiving one pre-padded sentence that only a human can read.
 """
 
 from __future__ import annotations
@@ -35,8 +43,9 @@ import json
 import math
 import sys
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import IO, Literal, Protocol
 
 import pandas as pd
@@ -64,8 +73,10 @@ _ASCII_GLYPHS: dict[PhaseState, str] = {
     "failed": "x",
 }
 
-#: What a terminal that cannot encode the box drawing gets instead. A search
-#: writes its cells without knowing where they will be shown, so narrowing them
+#: What a terminal that cannot encode the box drawing gets instead. Cells no
+#: longer need this — they are values, and :func:`_format_cell` is told whether
+#: it may use a glyph — but a :class:`SearchPlan` detail and a free-form
+#: :meth:`Reporter.note` are prose a method writes in full, so narrowing them
 #: is the renderer's job and happens once, on the way out.
 _PLAIN = {
     "\u2713": "ok",
@@ -128,12 +139,101 @@ class RunPlan:
         return self.lookahead_periods * self.period_minutes / 60.0
 
 
+#: What a cell *means*. A search names the kind; this module owns the format,
+#: the width and the glyphs, so no method has to know what a terminal can
+#: encode — which is the whole reason a cell crosses the seam as a value.
+CellKind = Literal[
+    "count",
+    "price",
+    "number",
+    "precise",
+    "money",
+    "percent",
+    "signed_percent",
+    "flag",
+    "interval",
+    "text",
+]
+
+#: One cell, in the method's own terms. ``None`` means *not applicable* — a
+#: column this pass cannot fill — and is drawn as a dash rather than as a zero.
+CellValue = float | bool | tuple[float, float] | str | None
+
+#: What a pass filled, by column key. A key a pass omits is ``None``.
+Cells = Mapping[str, CellValue]
+
+#: The cells of a pass that fills none of its method's columns.
+EMPTY_CELLS: Cells = MappingProxyType({})
+
+
 @dataclass(frozen=True, slots=True)
 class Column:
-    """One method-specific column of the pass table."""
+    """One column of the pass table — named and typed, but not laid out.
 
+    ``key`` is what a pass fills in its :data:`Cells`, and ``kind`` is all a
+    renderer needs to size and format it. There is deliberately no width: a
+    width is a fact about a terminal, and a search method is not where that is
+    known.
+    """
+
+    key: str
     header: str
-    width: int
+    kind: CellKind
+
+
+#: How wide each kind needs to be before its header is taken into account.
+_CELL_WIDTHS: dict[CellKind, int] = {
+    "count": 4,
+    "price": 8,
+    "number": 9,
+    "precise": 8,
+    "money": 12,
+    "percent": 7,
+    "signed_percent": 9,
+    "flag": 7,
+    "interval": 20,
+    "text": 16,
+}
+
+#: Drawn in place of a column the pass could not fill.
+_ABSENT = "\u2014"
+
+
+def _format_cell(kind: CellKind, value: CellValue, *, plain: bool = False) -> str:
+    """Render one cell. The only place in the project that formats one.
+
+    ``plain`` is for a destination that cannot carry a glyph — a log file, or a
+    terminal whose encoding cannot hold a tick. Which is precisely why the
+    choice is made here and not by the method that read the bit.
+    """
+    if value is None:
+        return "-" if plain else _ABSENT
+    if kind == "flag":
+        if plain:
+            return "yes" if value else "no"
+        return "\u2713 yes" if value else "\u2717 no"
+    if kind == "interval":
+        assert isinstance(value, tuple)
+        low, high = value
+        return f"[{low:,.2f}, {high:,.2f}]"
+    if kind == "text":
+        return str(value)
+    number = float(value)  # type: ignore[arg-type]
+    formats: dict[str, str] = {
+        "count": f"{number:,.0f}",
+        "price": f"{number:,.2f}",
+        "number": f"{number:,.1f}",
+        "precise": f"{number:,.3f}",
+        "money": f"{number:,.0f}",
+        "percent": f"{number:.2%}",
+        "signed_percent": f"{number:+.1%}",
+    }
+    return formats[kind]
+
+
+def _label(key: str) -> str:
+    """``dual_bound`` reads as ``dual bound`` once it reaches a reader."""
+    return key.replace("_", " ")
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,6 +286,35 @@ class PassReport:
         return "relaxed" if self.relaxed else "capped"
 
 
+@dataclass(frozen=True, slots=True)
+class Figure:
+    """One labelled number a finished search is willing to stand behind.
+
+    ``value`` is ``None`` when the method has nothing to report for it, which
+    is the case the padded-string version of this got wrong: bisection has no
+    dual bound to quote, and *why* it has none is the ``note``, not a number.
+    """
+
+    key: str
+    value: CellValue
+    kind: CellKind
+    unit: str = ""
+    note: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class SearchSummary:
+    """What a search concluded, in numbers rather than in aligned text.
+
+    Every method ends by quoting the cycle value it settled on; the rest is the
+    certificate it can offer for it, which differs by method and is therefore
+    a tuple of :class:`Figure` rather than a fixed set of fields.
+    """
+
+    cycle_value: float
+    figures: tuple[Figure, ...] = ()
+
+
 class Reporter(Protocol):
     """Somewhere for a run to say what it is doing."""
 
@@ -207,7 +336,9 @@ class Reporter(Protocol):
 
     def window_done(self, progress: WindowProgress) -> None: ...
 
-    def pass_finished(self, report: PassReport, cells: Sequence[str] = ()) -> None: ...
+    def pass_finished(self, report: PassReport, cells: Cells = EMPTY_CELLS) -> None: ...
+
+    def search_finished(self, summary: SearchSummary) -> None: ...
 
     def note(self, text: str) -> None: ...
 
@@ -242,7 +373,10 @@ class NullReporter:
     def window_done(self, progress: WindowProgress) -> None:
         return None
 
-    def pass_finished(self, report: PassReport, cells: Sequence[str] = ()) -> None:
+    def pass_finished(self, report: PassReport, cells: Cells = EMPTY_CELLS) -> None:
+        return None
+
+    def search_finished(self, summary: SearchSummary) -> None:
         return None
 
     def note(self, text: str) -> None:
@@ -260,11 +394,11 @@ class NullReporter:
 
 #: The shared columns, which come off a ``DualPoint`` whatever method found it.
 SHARED_COLUMNS = (
-    Column("pass", 4),
-    Column("λ £/cyc", 8),
-    Column("cycles", 9),
-    Column("vs budget", 9),
-    Column("profit £", 12),
+    Column("pass", "pass", "count"),
+    Column("cycle_value", "λ £/cyc", "price"),
+    Column("cycles", "cycles", "number"),
+    Column("overspend", "vs budget", "signed_percent"),
+    Column("profit", "profit £", "money"),
 )
 
 
@@ -330,6 +464,19 @@ class ConsoleReporter(NullReporter):
         self._live = len(lines)
         self._last_draw = now
         self._out.flush()
+
+    def _col_width(self, column: Column) -> int:
+        """How wide to draw a column, measured on the header *as it will appear*.
+
+        ``λ £/cyc`` narrows to ``lambda GBP/cyc`` on a terminal that cannot
+        encode it, so a width taken from the unicode header leaves the ASCII
+        rendering a column short.
+        """
+        return max(len(self._line(column.header)), _CELL_WIDTHS[column.kind])
+
+    def _cell(self, column: Column, value: CellValue) -> str:
+        text = _format_cell(column.kind, value, plain=not self._unicode)
+        return f"{text:>{self._col_width(column)}}"
 
     def _glyph(self, state: PhaseState) -> str:
         if not self._unicode:
@@ -398,9 +545,11 @@ class ConsoleReporter(NullReporter):
     def search_started(self, plan: SearchPlan) -> None:
         self._search = plan
         columns = (*SHARED_COLUMNS, *plan.columns)
-        header = "   " + "  ".join(f"{c.header:>{c.width}}" for c in columns)
+        header = "   " + "  ".join(
+            f"{self._line(c.header):>{self._col_width(c)}}" for c in columns
+        )
         rule = "   " + "  ".join(
-            ("─" if self._unicode else "-") * c.width for c in columns
+            ("─" if self._unicode else "-") * self._col_width(c) for c in columns
         )
         self._commit("", self._paint(header, "dim"), self._paint(rule, "dim"))
 
@@ -414,7 +563,7 @@ class ConsoleReporter(NullReporter):
         self._progress = progress
         self._redraw()
 
-    def pass_finished(self, report: PassReport, cells: Sequence[str] = ()) -> None:
+    def pass_finished(self, report: PassReport, cells: Cells = EMPTY_CELLS) -> None:
         self._erase()
         self._pass = None
         self._progress = None
@@ -423,6 +572,31 @@ class ConsoleReporter(NullReporter):
         if not report.cached:
             self._durations.append(report.elapsed)
         self._commit(self._row(report, cells))
+
+    def search_finished(self, summary: SearchSummary) -> None:
+        """Lay out the certificate the search ended on, aligned on its labels."""
+        self._erase()
+        figures = (
+            Figure("cycle_value", summary.cycle_value, "price", unit="£/cycle"),
+            *summary.figures,
+        )
+        label = max(len(_label(figure.key)) for figure in figures)
+        rendered = {
+            figure.key: _format_cell(figure.kind, figure.value, plain=not self._unicode)
+            for figure in figures
+            if figure.value is not None
+        }
+        value = max([12, *(len(text) for text in rendered.values())])
+        self._commit(
+            *(
+                self._paint(
+                    f"        {_label(figure.key):<{label}}  "
+                    f"{_body(figure, rendered.get(figure.key), value)}".rstrip(),
+                    "dim",
+                )
+                for figure in figures
+            )
+        )
 
     def note(self, text: str) -> None:
         self._commit(self._paint(f"        {text}", "dim"))
@@ -455,20 +629,23 @@ class ConsoleReporter(NullReporter):
 
     # -- the live region --------------------------------------------------
 
-    def _row(self, report: PassReport, cells: Sequence[str]) -> str:
-        widths = [c.width for c in SHARED_COLUMNS]
-        over = f"{report.overspend:+.1%}"
-        tone = "green" if report.within_budget else "red"
-        parts = [
-            f"{report.index:>{widths[0]}}",
-            f"{report.cycle_value:>{widths[1]},.2f}",
-            f"{report.cycles:>{widths[2]},.1f}",
-            self._paint(f"{over:>{widths[3]}}", tone),
-            f"{report.profit:>{widths[4]},.0f}",
-        ]
+    def _row(self, report: PassReport, cells: Cells) -> str:
+        """One table row, assembled by column key so a missing cell cannot shift it."""
+        values: dict[str, CellValue] = {
+            "pass": report.index,
+            "cycle_value": report.cycle_value,
+            "cycles": report.cycles,
+            "overspend": report.overspend,
+            "profit": report.profit,
+            **cells,
+        }
+        parts = []
         extras = self._search.columns if self._search else ()
-        for column, cell in zip(extras, cells, strict=False):
-            parts.append(f"{cell:>{column.width}}")
+        for column in (*SHARED_COLUMNS, *extras):
+            cell = self._cell(column, values.get(column.key))
+            if column.key == "overspend":
+                cell = self._paint(cell, "green" if report.within_budget else "red")
+            parts.append(cell)
         suffix = ""
         if report.cached:
             suffix = self._paint("  cached", "dim")
@@ -480,9 +657,12 @@ class ConsoleReporter(NullReporter):
         if self._pass is None:
             return
         index, cycle_value, relaxed, label = self._pass
+        # Through the same cells as a committed row, so the pass in flight sits
+        # in the columns it will land in rather than under its own widths.
         head = (
-            f"   {self._paint(f'{index:>4}', 'cyan')}  {cycle_value:>8,.2f}  "
-            + "  ".join(f"{'·' if self._unicode else '.':>{c.width}}"
+            f"   {self._paint(self._cell(SHARED_COLUMNS[0], index), 'cyan')}  "
+            f"{self._cell(SHARED_COLUMNS[1], cycle_value)}  "
+            + "  ".join(f"{'·' if self._unicode else '.':>{self._col_width(c)}}"
                         for c in SHARED_COLUMNS[2:])
         )
         mode = label or ("relaxed" if relaxed else "capped")
@@ -573,6 +753,7 @@ class LogReporter(NullReporter):
     def __init__(self, stream: IO[str] | None = None) -> None:
         self._out = stream if stream is not None else sys.stderr
         self._marks: set[float] = set()
+        self._kinds: dict[str, CellKind] = {}
 
     def _say(self, kind: str, text: str) -> None:
         self._out.write(f"{time.strftime('%H:%M:%S')} {kind:<8} {text}\n")
@@ -597,6 +778,7 @@ class LogReporter(NullReporter):
         self._say(name, f"{state} {detail}".strip() + suffix)
 
     def search_started(self, plan: SearchPlan) -> None:
+        self._kinds = {column.key: column.kind for column in plan.columns}
         self._say(
             "search",
             f"method={plan.method} max_passes={plan.max_passes} "
@@ -618,7 +800,7 @@ class LogReporter(NullReporter):
                     f"windows={progress.window}/{progress.windows} {mark:.0%} at {progress.at}",
                 )
 
-    def pass_finished(self, report: PassReport, cells: Sequence[str] = ()) -> None:
+    def pass_finished(self, report: PassReport, cells: Cells = EMPTY_CELLS) -> None:
         gap = "n/a" if report.gap is None else f"{report.gap:.6f}"
         self._say(
             f"pass {report.index}",
@@ -626,8 +808,12 @@ class LogReporter(NullReporter):
             f"cycles={report.cycles:.1f} L={report.lagrangian:.2f} "
             f"subgradient={report.subgradient:.1f} gap={gap} "
             f"within_budget={report.within_budget} cached={report.cached} "
-            f"elapsed={report.elapsed:.1f}s",
+            f"elapsed={report.elapsed:.1f}s" + _pairs(cells, self._kinds),
         )
+
+    def search_finished(self, summary: SearchSummary) -> None:
+        figures = "".join(f" {figure.key}={_log_figure(figure)}" for figure in summary.figures)
+        self._say("search", f"finished lambda={summary.cycle_value:.4f}{figures}")
 
     def note(self, text: str) -> None:
         self._say("note", text)
@@ -691,7 +877,7 @@ class JsonReporter(NullReporter):
         if progress.window % 100 == 0 or progress.window == progress.windows:
             self._emit("window", window=progress.window, windows=progress.windows)
 
-    def pass_finished(self, report: PassReport, cells: Sequence[str] = ()) -> None:
+    def pass_finished(self, report: PassReport, cells: Cells = EMPTY_CELLS) -> None:
         self._emit(
             "pass_finished",
             index=report.index,
@@ -706,6 +892,20 @@ class JsonReporter(NullReporter):
             cached=report.cached,
             recovery=report.recovery,
             elapsed=report.elapsed,
+            # Nested, not splatted: a method is free to call a column ``gap`` or
+            # ``lagrangian``, and those names are already taken at this level.
+            cells={key: _jsonable(value) for key, value in cells.items()},
+        )
+
+    def search_finished(self, summary: SearchSummary) -> None:
+        """The certificate as data, which is the half a sweep script wants back."""
+        self._emit(
+            "search_finished",
+            cycle_value=summary.cycle_value,
+            figures=[
+                {"key": figure.key, "value": _jsonable(figure.value), "note": figure.note}
+                for figure in summary.figures
+            ],
         )
 
     def note(self, text: str) -> None:
@@ -764,6 +964,40 @@ def _wants_colour(stream: IO[str]) -> bool:
 def _wants_unicode(stream: IO[str]) -> bool:
     encoding = (getattr(stream, "encoding", "") or "").lower()
     return "utf" in encoding
+
+
+def _body(figure: Figure, rendered: str | None, width: int) -> str:
+    """One line of a certificate: the number, its unit, and any caveat on it."""
+    if rendered is None:
+        return f"not available \u2014 {figure.note}" if figure.note else "not available"
+    body = f"{rendered:>{width}}"
+    if figure.unit:
+        body = f"{body} {figure.unit}"
+    return f"{body}  {figure.note}" if figure.note else body
+
+
+def _log_figure(figure: Figure) -> str:
+    """One figure as ``key=value``, with the caveat in brackets after it."""
+    text = (
+        "not available"
+        if figure.value is None
+        else _format_cell(figure.kind, figure.value, plain=True)
+    )
+    return f"{text} ({figure.note})" if figure.note else text
+
+
+def _pairs(cells: Cells, kinds: Mapping[str, CellKind]) -> str:
+    """The method's own cells as ``key=value``, formatted by their declared kind."""
+    return "".join(
+        f" {key}={_format_cell(kinds.get(key, 'text'), value, plain=True)}"
+        for key, value in cells.items()
+        if value is not None
+    )
+
+
+def _jsonable(value: CellValue) -> object:
+    """An interval is a pair of numbers; JSON has no tuple, so it goes out as a list."""
+    return list(value) if isinstance(value, tuple) else value
 
 
 #: Width of the phase-name column, so every phase line starts in the same place.

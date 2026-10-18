@@ -40,7 +40,13 @@ from battery_case.modelling.cycle_value.oracle import (
     DualSearchResult,
 )
 from battery_case.modelling.window_problem import default_solver
-from battery_case.reporting import Column, SearchPlan, passes_phrase
+from battery_case.reporting import (
+    Column,
+    Figure,
+    SearchPlan,
+    SearchSummary,
+    passes_phrase,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,7 +74,10 @@ class CuttingPlaneSearch:
             ),
             max_passes=self.max_passes,
             passes_known=False,
-            columns=(Column("L(\u03bb) \u00a3", 11), Column("gap", 7)),
+            columns=(
+                Column("lagrangian", "L(\u03bb) \u00a3", "money"),
+                Column("gap", "gap", "percent"),
+            ),
             tolerance=self.tolerance,
         )
 
@@ -99,10 +108,21 @@ class CuttingPlaneSearch:
         best = min(cuts, key=lambda cut: cut.lagrangian)
         bound = DualBound(lagrangian=best.lagrangian, envelope=envelope)
         reporter.phase("calibrate", "done", f"converged \u00b7 {passes_phrase(oracle.passes)}")
-        reporter.note(f"cycle value   {best.cycle_value:>12,.2f} \u00a3/cycle")
-        reporter.note(f"dual gap      {bound.relative_gap:>12.3%}")
-        reporter.note(f"profit \u2264      {bound.lagrangian:>12,.0f} \u00a3  "
-                      "weak-duality bound on the constrained optimum")
+        reporter.search_finished(
+            SearchSummary(
+                cycle_value=best.cycle_value,
+                figures=(
+                    Figure("dual_gap", bound.relative_gap, "percent"),
+                    Figure(
+                        "profit_bound",
+                        bound.lagrangian,
+                        "money",
+                        unit="\u00a3",
+                        note="weak-duality bound on the constrained optimum",
+                    ),
+                ),
+            )
+        )
 
         deliverable = self._recover(oracle, best)
 
@@ -137,7 +157,7 @@ class CuttingPlaneSearch:
 
         reporter.pass_finished(
             oracle.pass_report(point, gap=gap),
-            cells=(f"{point.lagrangian:,.0f}", f"{gap:.2%}"),
+            cells={"lagrangian": point.lagrangian, "gap": gap},
         )
         reporter.note(
             f"cut {len(cuts)}   L \u2265 {point.lagrangian:,.0f} "
@@ -179,9 +199,10 @@ class CuttingPlaneSearch:
         )
         reporter.note("     a relaxed pass is an evaluation, not a deliverable plan")
 
+        # A capped pass has no cut and no envelope, so it fills neither of this
+        # method's columns; leaving them out is what draws them empty.
         capped = oracle.at(best.cycle_value, relaxed=False, label="recovery")
-        dash = "\u2014"
-        reporter.pass_finished(oracle.pass_report(capped, recovery=True), cells=(dash, dash))
+        reporter.pass_finished(oracle.pass_report(capped, recovery=True))
         reporter.phase("recover", "done", "plan is within budget", elapsed=capped.elapsed)
         return capped
 
