@@ -42,7 +42,7 @@ The obvious target, "find the λ where cycle use equals the budget", does not
 exist in general. Cycle use as a function of λ is a **step function**: trades
 drop out one threshold at a time, so the curve is flat almost everywhere and
 jumps where a day stops being worth a cycle. Measured on the three-day
-instance of `tests/test_dual_problem.py`
+instance of `tests/test_cycle_value.py`
 ([what it looks like](cycle-budget.md#what-it-looks-like)), with one cycle of
 budget:
 

@@ -9,18 +9,18 @@ returns a dual bound, where bisection reads one bit per pass and certifies
 nothing.
 
 A search is run over the horizon by
-:class:`~battery_case.modelling.dual_problem.CycleOracle`; it reaches the CLI as
+:class:`~battery_case.modelling.cycle_value.oracle.CycleOracle`; it reaches the CLI as
 a policy through
-:class:`~battery_case.modelling.calibrated_policy.CalibratedPolicy`.
+:class:`~battery_case.modelling.cycle_value.calibrated_policy.CalibratedPolicy`.
 """
 
 from __future__ import annotations
 
 import pandas as pd
 
-from battery_case.modelling.bisection import BisectionSearch
-from battery_case.modelling.cutting_plane import CuttingPlaneSearch
-from battery_case.modelling.dual_problem import CycleOracle, DualSearch
+from battery_case.modelling.cycle_value.bisection import BisectionSearch
+from battery_case.modelling.cycle_value.cutting_plane import CuttingPlaneSearch
+from battery_case.modelling.cycle_value.oracle import CycleOracle, DualSearch
 from battery_case.modelling.parameters import ModelParameters
 from battery_case.modelling.periods import SettlementPeriods
 from battery_case.modelling.rolling_horizon import RollingPolicy
@@ -47,10 +47,10 @@ def calibrate_cycle_value(
     """Find the value per cycle that rations a binding cycle budget, by bisection.
 
     The narrow door onto
-    :class:`~battery_case.modelling.bisection.BisectionSearch`, for a caller
+    :class:`~battery_case.modelling.cycle_value.bisection.BisectionSearch`, for a caller
     that wants that method and nothing else from the seam. A calibrated run
     should go through :data:`SEARCHES` or
-    :class:`~battery_case.modelling.calibrated_policy.CalibratedPolicy` instead,
+    :class:`~battery_case.modelling.cycle_value.calibrated_policy.CalibratedPolicy` instead,
     which default to :data:`DEFAULT_SEARCH` and can return a dual bound.
     """
     search = BisectionSearch(

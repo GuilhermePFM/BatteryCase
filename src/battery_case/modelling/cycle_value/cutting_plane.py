@@ -32,7 +32,7 @@ from dataclasses import dataclass
 
 import pulp
 
-from battery_case.modelling.dual_problem import (
+from battery_case.modelling.cycle_value.oracle import (
     CycleOracle,
     DualBound,
     DualPoint,

@@ -66,7 +66,7 @@ def solve_window(
     ``cycle_value`` is what one equivalent full cycle is worth, in £, charged
     to the objective so that a window solved in isolation still weighs cycle
     life against the spread in front of it. It is zero in the undecomposed
-    model; :func:`battery_case.modelling.dual_search.calibrate_cycle_value` sets
+    model; :func:`battery_case.modelling.cycle_value.searches.calibrate_cycle_value` sets
     it when the cycle budget binds.
     """
     problem, var = build_problem(settlement, params, state, cycle_value=cycle_value, blocks=blocks)

@@ -7,7 +7,7 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-from battery_case.modelling.dual_search import calibrate_cycle_value
+from battery_case.modelling.cycle_value.searches import calibrate_cycle_value
 from battery_case.modelling.parameters import ModelParameters, prorated_cycle_budget
 from battery_case.modelling.periods import SettlementPeriods
 from battery_case.modelling.plan import COLUMNS, summarise

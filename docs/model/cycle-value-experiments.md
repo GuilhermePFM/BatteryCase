@@ -21,7 +21,7 @@ uv run python scripts/sweep_searches.py            # every method, 1 to 90 days
 uv run python scripts/sweep_searches.py 365 all --search cutting-plane --no-exact
 ```
 
-Everything below is measured by that script and by `tests/test_dual_problem.py`. One
+Everything below is measured by that script and by `tests/test_cycle_value.py`. One
 *pass* means one full rolling run over the instance: 1,096 window MILPs on the
 three-year horizon, measured at about 77 seconds
 ([§2](#the-whole-horizon-with-no-truth-to-check-against)). The pass count is
@@ -36,7 +36,7 @@ construction, so the only thing such a pass can report is whether the clip was
 reached. That single bit is all bisection needs; it is not enough for a
 cutting-plane method, which needs a value and a slope.
 
-Measured on the three-day instance of `tests/test_dual_problem.py` (two modest days,
+Measured on the three-day instance of `tests/test_cycle_value.py` (two modest days,
 then a dear one, one cycle of budget), the same `λ` through both subproblems:
 
 | λ (£/cycle) | capped: cycles | profit | subgradient | relaxed: cycles | profit | subgradient |
@@ -68,7 +68,7 @@ bisection's £1,435.55 is the top of a plateau
 > bound doing the work the row is supposed to do, and the relaxed column above
 > would be identical to the capped one. So `n_cyc` is declared free, making
 > `blocks` a real relaxation lever. `tests/test_constraints.py` pins the free
-> bound, and `tests/test_dual_problem.py` pins that a relaxed pass overspends.
+> bound, and `tests/test_cycle_value.py` pins that a relaxed pass overspends.
 
 ## 2. What each method costs, against a known answer
 
@@ -230,7 +230,7 @@ None of the three reasons is profit:
   being a true maximum rather than on evidence.
 - **Neither method fires on the headline run.** With the full 5,000-cycle budget
   of §5 the horizon spends 3,443, so the cap does not bind, `λ* = 0`, and both
-  methods stop after a single pass, which `tests/test_dual_problem.py` asserts. All of
+  methods stop after a single pass, which `tests/test_cycle_value.py` asserts. All of
   this serves the pro-rated 1,500-cycle reading, and quotas.
 - **The three-year calibrated run has no ground truth.** It is measured — 10
   passes, 12 min 49 s, λ = £30.17 — but the exact MILP that validated the bound

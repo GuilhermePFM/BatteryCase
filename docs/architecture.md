@@ -19,20 +19,20 @@ The formulation lives in [`model/model.md`](model/model.md) as numbered sections
 | `modelling/constraints.py` | §3–§4.7 | The objective and the constraints, one block per section |
 | `modelling/window_problem.py` | §3–§4.7 | Assembles, solves and reads back one window's MILP |
 | `modelling/rolling_horizon.py` | §6 | The window sequence covering the horizon |
-| `modelling/dual_problem.py` | §6 | The seam: one pass of the horizon, as an oracle |
-| `modelling/bisection.py` | §6 | Finding the cycle value by bisection |
-| `modelling/cutting_plane.py` | §6 | Finding it by cutting planes, with a bound |
-| `modelling/dual_search.py` | §6 | The methods on offer, by the name that selects one |
-| `modelling/calibrated_policy.py` | §6 | A calibrated run, as a `DispatchPolicy` |
+| `modelling/cycle_value/oracle.py` | §6 | The seam: one pass of the horizon, as an oracle |
+| `modelling/cycle_value/bisection.py` | §6 | Finding the cycle value by bisection |
+| `modelling/cycle_value/cutting_plane.py` | §6 | Finding it by cutting planes, with a bound |
+| `modelling/cycle_value/searches.py` | §6 | The methods on offer, by the name that selects one |
+| `modelling/cycle_value/calibrated_policy.py` | §6 | A calibrated run, as a `DispatchPolicy` |
 | `modelling/plan.py` | §7 | The plan and the figures read off it |
 
-One dependency rule holds the package together: **the model cannot read a file, and the loaders cannot model.** `data_models/` imports nothing of ours. `data_io/` and `modelling/` both depend on it and never on each other. `cli.py` is the only module that touches both.
+One dependency rule holds the package together: **the model cannot read a file, and the loaders cannot model.** `data_models/` imports nothing of ours. `data_io/` and `modelling/` both depend on it and never on each other. `cli.py` is the only module that touches both. Inside `modelling/` the same rule runs once more: `cycle_value/` is the outer search for the budget's value and depends on the formulation beside it, while nothing in the formulation imports from `cycle_value/`. Six modules used to share §6 in one flat listing; the five that search for the value are now a package of their own, leaving `rolling_horizon.py` as the §6 the formulation owns.
 
 ```mermaid
 flowchart TD
     CLI["<b>cli.py</b><br/>the only place the two halves meet"]
     IO["<b>data_io/</b> · acquisition<br/><br/>paths · loaders (reads .xlsx)<br/>quality (reports, never repairs)"]
-    MOD["<b>modelling/</b> · the decision<br/><br/>periods §1,§5 · parameters §2<br/><b>constraints</b> §3–§4.7 · the formulation, block by block<br/><b>window_problem</b> · the only module that knows a solver exists<br/>rolling_horizon §6 · <b>dual_problem</b> §6 · one seam, two algorithms<br/>plan §7"]
+    MOD["<b>modelling/</b> · the decision<br/><br/>periods §1,§5 · parameters §2<br/><b>constraints</b> §3–§4.7 · the formulation, block by block<br/><b>window_problem</b> · the only module that knows a solver exists<br/>rolling_horizon §6 · plan §7<br/><b>cycle_value/</b> §6 · one seam, two algorithms, downstream of all the above"]
     DM["<b>data_models/</b><br/>BatterySpec · MarketPrices<br/><i>imports nothing of ours</i>"]
 
     CLI -- load --> IO
@@ -61,13 +61,14 @@ src/battery_case/
     constraints.py        §3–§4.7, one block per section
     window_problem.py     builds, solves and reads back one window
     rolling_horizon.py    §6, the window sequence
-    dual_problem.py       §6, the search seam and its oracle
-    bisection.py          §6, the cycle value by bisection
-    cutting_plane.py      §6, the cycle value by cutting planes
-    dual_search.py        §6, the registry of methods
-    calibrated_policy.py  §6, a calibrated run as a DispatchPolicy
     plan.py               §7
     policy.py             the DispatchPolicy protocol
+    cycle_value/      §6, the outer search for the budget's value
+      oracle.py             the search seam and its oracle
+      bisection.py          the cycle value by bisection
+      cutting_plane.py      the cycle value by cutting planes
+      searches.py           the registry of methods
+      calibrated_policy.py  a calibrated run as a DispatchPolicy
   cli.py            the `battery-case` command
 ```
 
@@ -149,19 +150,19 @@ Turns the arrays into the one DataFrame every figure is read off, with `COLUMNS`
 
 A `Protocol` taking prices and returning a plan, rather than an abstract base class, so a heuristic benchmark need not inherit anything to be scored by the same `summarise`. Structural typing keeps a class hierarchy out of the seam.
 
-**`CycleOracle` · `DualPoint`** · `modelling/dual_problem.py` · §6
+**`CycleOracle` · `DualPoint`** · `modelling/cycle_value/oracle.py` · §6
 
 One pass of the horizon at one charge, memoised on `(price, relaxed)` and counted. The pass is the unit of cost, ~77 seconds on the three-year horizon, so it is written once and `oracle.passes` is the number any comparison of methods turns on rather than a figure each method reports about itself. `DualPoint` is what a pass yields: the Lagrangian value, the exact subgradient, the profit, the cycles, the plan, and whether that plan is deliverable.
 
-**`DualSearch` · `SEARCHES`** · `modelling/dual_problem.py` · `modelling/dual_search.py` · §6
+**`DualSearch` · `SEARCHES`** · `modelling/cycle_value/oracle.py` · `modelling/cycle_value/searches.py` · §6
 
 The seam between the budget's price and the method that finds it, and the catalogue of methods behind it. Covered in [§4](#4-how-to-obtain-the-lagrangian-price-cutting-planes-and-bissection).
 
-**`DualSearchResult` · `DualBound`** · `modelling/dual_problem.py` · §6
+**`DualSearchResult` · `DualBound`** · `modelling/cycle_value/oracle.py` · §6
 
 What a search returns. `bound` is `DualBound | None`: bisection reads one bit per pass and has no certificate to give, so the absence is expressed in the type rather than as a sentinel number.
 
-**`CalibratedPolicy`** · `modelling/calibrated_policy.py` · §6
+**`CalibratedPolicy`** · `modelling/cycle_value/calibrated_policy.py` · §6
 
 Values the budget, then dispatches at that value, implementing `DispatchPolicy` while doing it, so `summarise`, the CLI and the notebooks keep their single `run(spec, prices)` seam. `calibrate_and_dispatch` is the wider door for a caller that wants the cycle value, the pass count and the bound as well as the plan.
 
@@ -275,9 +276,9 @@ pair: a search rule, and the relaxation it searches over.
 Four layers, each depending only downwards:
 
 ```
-bisection.py · cutting_plane.py     the two search rules
-  ──────── DualSearch ────────     the seam; SEARCHES is the catalogue
-dual_problem.py · CycleOracle.at(λ, relaxed=…) → DualPoint
+cycle_value/bisection.py · cycle_value/cutting_plane.py   the two search rules
+  ──────────────── DualSearch ────────────────   the seam; SEARCHES is the catalogue
+cycle_value/oracle.py · CycleOracle.at(λ, relaxed=…) → DualPoint
 rolling_horizon.py · RollingPolicy(blocks=…)  one pass over the horizon
 constraints.py · DEFAULT_BLOCKS / UNCAPPED_BLOCKS
 ```

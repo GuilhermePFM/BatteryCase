@@ -13,8 +13,8 @@ import pandas as pd
 from battery_case.data_io import load_battery_spec, load_market_prices, price_quality_report
 from battery_case.data_io.paths import BATTERY_SPEC_XLSX, MARKET_PRICES_XLSX, RESULTS_DIR
 from battery_case.modelling import ModelParameters, RollingPolicy, build_periods, summarise
-from battery_case.modelling.calibrated_policy import CalibratedPolicy
-from battery_case.modelling.dual_search import DEFAULT_SEARCH, SEARCHES, search_named
+from battery_case.modelling.cycle_value.calibrated_policy import CalibratedPolicy
+from battery_case.modelling.cycle_value.searches import DEFAULT_SEARCH, SEARCHES, search_named
 from battery_case.modelling.periods import SettlementPeriods
 from battery_case.modelling.rolling_horizon import PERIODS_PER_DAY
 

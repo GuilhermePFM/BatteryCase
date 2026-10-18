@@ -31,7 +31,7 @@ uv run pytest        # 64 tests, ~10 s. The MILP tests need no spreadsheet,
 | `test_plan.py` | 5 | Revenue priced on energy *delivered* not drawn, solver noise reported as zero, §4.7 volumes, empty-plan summary |
 | `test_data_io.py` | 4 | The spec against Attachment 1, both series at their native resolutions, the clock-change artefacts flagged |
 | `test_constraints.py` | 13 | Each constraint block against the rows it adds, without a solver: the named rows per period, §4.5 tying only the second half of each hour, the opening state read only in period 0, `DEFAULT_BLOCKS` accounting for every row the assembled model holds, and §4.6's cap imposed as a row with `n_cyc` left free, so that it can be relaxed |
-| `test_dual_problem.py` | 14 | The two cycle-budget searches of §6: that a relaxed pass really overspends the budget and a capped one reports no usable slope, that the oracle counts and reuses its passes, the master LP's envelope minimum against cuts whose answer is known on paper, both methods reaching the same plan, and the dual bound holding above an exactly solved optimum |
+| `test_cycle_value.py` | 14 | The two cycle-budget searches of §6: that a relaxed pass really overspends the budget and a capped one reports no usable slope, that the oracle counts and reuses its passes, the master LP's envelope minimum against cuts whose answer is known on paper, both methods reaching the same plan, and the dual bound holding above an exactly solved optimum |
 | `test_cli.py` | 2 | Both commands end to end, including the written plan's dates and length |
 
 A strict `mypy` pass and `ruff` run alongside.

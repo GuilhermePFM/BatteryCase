@@ -64,7 +64,7 @@ solve is available. It has its own page: [bisection](bisection.md).
 
 ## What it looks like
 
-The test instance of `tests/test_dual_problem.py`, with its real numbers: one cycle
+The test instance of `tests/test_cycle_value.py`, with its real numbers: one cycle
 of budget, three days, and the best spread deliberately placed beyond the
 lookahead.
 

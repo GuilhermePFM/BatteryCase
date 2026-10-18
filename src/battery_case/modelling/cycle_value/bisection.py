@@ -13,7 +13,7 @@ all a capped pass can report, and all this method needs.
 
 What it cannot do is say how good the answer is. The bit carries no slope, so
 there is no dual bound to be had here, and :attr:`DualSearchResult.bound` is
-``None``. :mod:`battery_case.modelling.cutting_plane` is the method that trades
+``None``. :mod:`battery_case.modelling.cycle_value.cutting_plane` is the method that trades
 the bit for a Lagrangian and a subgradient and gets a certificate back.
 """
 
@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from battery_case.modelling.dual_problem import (
+from battery_case.modelling.cycle_value.oracle import (
     SPENT_TOLERANCE,
     CycleOracle,
     DualPoint,

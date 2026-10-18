@@ -42,14 +42,15 @@ invites exactly the wrong reading.
 | `modelling/milp.py` | `modelling/window_problem.py` | Holds *the problem over one window*; MILP is equally true of `constraints.py`, and plain `window` is the time span |
 | `modelling/dispatch.py` | `modelling/policy.py` | A rule mapping prices to actions is a policy |
 | `modelling/schedule.py` | `modelling/plan.py` | One word for the deliverable |
-| `modelling/pricing.py` | `modelling/dual_problem.py` | Holds the dual objects: the oracle, the points, the bound |
-| `modelling/pricers.py` | `modelling/dual_search.py` | The methods search the dual for the cycle value |
+| `modelling/pricing.py` | `modelling/cycle_value/oracle.py` | Holds the dual objects: the oracle, the points, the bound |
+| `modelling/pricers.py` | `modelling/cycle_value/searches.py` | The methods search the dual for the cycle value |
 
 The names now read the decomposition off a directory listing, smallest scope
 first: `periods.py` the half-hourly axis, `window_problem.py` one MILP over one
-window, `rolling_horizon.py` the sequence of them covering the horizon,
-`dual_problem.py` the subproblem at one cycle value over that whole horizon,
-`dual_search.py` the methods that choose the next cycle value to try, and
+window, `rolling_horizon.py` the sequence of them covering the horizon, and then
+the `cycle_value/` package for the search that sits on top of all of them:
+`oracle.py` the subproblem at one cycle value over that whole horizon,
+`searches.py` the methods that choose the next cycle value to try, and
 `calibrated_policy.py` a search run end to end as a `DispatchPolicy`.
 
 ### The time axis
@@ -120,7 +121,7 @@ name is already a *count* of half hours (`PERIODS_PER_DAY`, `commit_periods`,
 | `scripts/solve_monolith.py` | `scripts/solve_exact.py` |
 | `docs/model/cycle-price-experiments.md` | `cycle-value-experiments.md` |
 | `docs/model/cycle-price-sweep.csv` · `cycle-price-long-horizons.csv` | `cycle-value-sweep.csv` · `cycle-value-long-horizons.csv` |
-| `tests/test_grid.py` · `test_rolling.py` · `test_milp.py` · `test_schedule.py` · `test_pricing.py` | `test_periods.py` · `test_rolling_horizon.py` · `test_window_problem.py` · `test_plan.py` · `test_dual_problem.py` |
+| `tests/test_grid.py` · `test_rolling.py` · `test_milp.py` · `test_schedule.py` · `test_pricing.py` | `test_periods.py` · `test_rolling_horizon.py` · `test_window_problem.py` · `test_plan.py` · `test_cycle_value.py` |
 
 ## 3. The data
 

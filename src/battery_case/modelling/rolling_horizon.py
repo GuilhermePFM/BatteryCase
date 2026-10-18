@@ -18,7 +18,7 @@ Two couplings reach beyond a single window:
   therefore *valued*: ``cycle_value`` charges the objective per equivalent full
   cycle used, which makes each window spend cycles only on spreads worth that
   much, and the search for the value that rations the budget across the horizon
-  lives in :mod:`battery_case.modelling.dual_problem` and the two methods beside it.
+  lives in :mod:`battery_case.modelling.cycle_value.oracle` and the two methods beside it.
   With the full 5,000-cycle budget of §5 the cap is not reached on this price
   data and the cycle value stays at zero; it earns its keep under the pro-rated
   budget, or on a longer horizon.

@@ -21,8 +21,8 @@ import time
 import pulp
 
 from battery_case.data_io.loaders import load_battery_spec, load_market_prices
-from battery_case.modelling.dual_problem import CycleOracle
-from battery_case.modelling.dual_search import SEARCHES
+from battery_case.modelling.cycle_value.oracle import CycleOracle
+from battery_case.modelling.cycle_value.searches import SEARCHES
 from battery_case.modelling.parameters import ModelParameters
 from battery_case.modelling.periods import build_periods
 from battery_case.modelling.rolling_horizon import PERIODS_PER_DAY, RollingPolicy
