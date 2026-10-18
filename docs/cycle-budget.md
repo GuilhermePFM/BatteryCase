@@ -1,6 +1,6 @@
 # The cycle budget
 
-*A constraint that survives decomposition, and a calibration that didn't.*
+*The cycle budget constaraint couples distant windows.*
 
 [← README](../README.md) · [data](data.md) · [architecture](architecture.md) ·
 [solve](solve.md) · [pricing experiments](model/cycle-price-experiments.md) ·
@@ -10,38 +10,22 @@
 
 §4.6 caps the horizon's total throughput: `n_cyc(T) ≤ 5,000` equivalent full
 cycles. It is the only constraint in the formulation that couples periods
-arbitrarily far apart, so it is the only one [the decomposition](solve.md) can
-get wrong. It did get it wrong, in the *opposite* direction to the obvious
-guess.
+arbitrarily far apart, so it is the only one that an action today impacts the future. Therefore, we must find a way to bring this information forward to make the [the decomposition](solve.md) work.
 
-## What each window enforces
+## Without the lagrangian
 
 Every window receives the cycles already spent in `BatteryState.cycles`,
-accumulates from there, and caps the running total at the global budget. So the
-budget **cannot be overspent**: the cap is enforced 1,096 times over, each time
-against the true cumulative count. Feasibility was never the problem.
+accumulates from there, and caps the running total at the global budget. 
 
-> [!WARNING]
-> **The bug this exposed.** My first `calibrate_cycle_price` tested *"did the
-> horizon use more cycles than the budget?"* and only then went looking for a
-> price to ration them. The per-window cap makes overspend impossible, so that
-> condition is **unreachable**: the calibration could never fire, and would have
-> reported "nothing to do" on a horizon that was mis-spending its entire budget.
-> A test caught it. It asserted the unpriced run exceeded the cap, and failed at
-> 2.0 of 2.0 cycles rather than above it.
-
-The real failure mode is **exhaustion rather than overspend**. A window cannot
+Nonetheless the budget could be spent at the start of the horizon, if no information is brought forward. A window cannot
 see what a later window would have paid for a cycle, so the earliest days that
 find any profitable spread consume the budget, and the best spreads in the
 horizon arrive to find it gone. The schedule is feasible and the cap respected,
 and the answer is poor without anything flagging it.
 
-## The fix: price the budget instead of splitting it
+## With the lagrangian: price the budget
 
-Splitting the budget per window, say 4.56 cycles a day, would need to know in
-advance which days deserve cycles, which is what the decomposition cannot
-know. The budget is *priced* instead. A charge `λ` per equivalent full
-cycle enters each window's objective:
+Instead of assigning a budget per window, say 4.56 cycles a day, the budget is *priced* instead. A charge `λ` per equivalent full cycle enters each window's objective:
 
 ```python
 # constraints.py: profit_objective, §3 with the cycle charge of §6
@@ -70,17 +54,59 @@ each step and keeping the highest price that still spends the budget in full. A
 budget that is not exhausted at `λ = 0` is not binding, and zero is returned
 after a single run.
 
-This page is about that method, which the project started with and still uses by
-default. A second one, Kelley's cutting planes on the dual of §6, now sits
-beside it behind the same seam, costs about half the passes and returns a bound
-on the answer. It is measured against this one in
+### Why cycle use falls as λ rises
+
+Monotonicity is what makes a bisection legitimate: it is the property that lets
+one run at one charge rule out a whole half of the interval. Within a single
+window, from a fixed opening state, it is a one-line exchange argument. The
+feasible schedules do not depend on `λ` — only the objective does, and `λ`
+enters it linearly, charging `λ·n(x)` for a schedule `x` that spends `n(x)`
+cycles. Take two charges `λ₁ < λ₂` and an optimal schedule for each, `x₁` and
+`x₂`. Each is at least as good as the other *under its own charge*:
+
+```
+profit(x₁) − λ₁·n(x₁)  ≥  profit(x₂) − λ₁·n(x₂)
+profit(x₂) − λ₂·n(x₂)  ≥  profit(x₁) − λ₂·n(x₁)
+```
+
+Add the two inequalities; the profits cancel, leaving
+
+```
+(λ₂ − λ₁) · ( n(x₁) − n(x₂) )  ≥  0        so   n(x₁) ≥ n(x₂)
+```
+
+A dearer cycle is never bought more often. Nothing in the argument touches the
+binaries of §4.3 — it uses only that both schedules are optimal over the *same*
+feasible set — so it holds for the MILP exactly as it would for an LP.
+Equivalently: the window's value function is convex in `λ` with `−n` as a
+subgradient, and a convex function's subgradient is non-decreasing, which is the
+same statement read through §6's dual.
+
+Two things the argument does not give, and both shape the algorithm:
+
+- **The fall is weak, not strict.** `n(λ)` is piecewise constant, flat except at
+  the charges where some day stops being worth a cycle, and flat as well
+  wherever the cap clips it. So there is generally no `λ` at which use *equals*
+  the budget, and the search aims at the top of a plateau instead
+  ([what the search is searching over](#what-the-search-is-searching-over)).
+- **It is per window, not per horizon.** Raising `λ` changes what each window
+  commits, so it changes the state handed to the next one, and the later
+  windows' feasible sets are then no longer the fixed set the exchange argument
+  needs. Total use over the horizon is monotone in `λ` *empirically* on this
+  data, which is the assumption bisection rests on
+  ([what this method does not give you](#the-measured-trace-iteration-by-iteration)).
+
+This page is about that method, which is the default. A second one, Kelley's
+cutting planes on the dual of §6, sits beside it behind the same seam, costs
+about half the passes and returns a bound on the answer. It is measured against this one in
 [pricing experiments](model/cycle-price-experiments.md), and the seam is described in
-[architecture §4](architecture.md#4-two-ways-to-price-the-cycle-budget).
+[architecture §4](architecture.md#4-how-to-obtain-the-lagrangian-price-cutting-planes-and-bissection).
 
 ## What it looks like
 
-The regression test, with its real numbers: one cycle of budget, three days,
-and the best spread deliberately placed beyond the lookahead.
+The test instance of `tests/test_pricing.py`, with its real numbers: one cycle
+of budget, three days, and the best spread deliberately placed beyond the
+lookahead.
 
 ```mermaid
 flowchart LR
@@ -99,13 +125,12 @@ Both runs spend the full 1.0-cycle budget and both respect the cap. Only the
 *allocation* differs: £1,165 becomes £1,436 for the same single cycle.
 
 > [!NOTE]
-> **The subtlety that cost me a second test.** A binding cap does *not* imply a
-> price helps. My first regression test used three identical days: the budget
-> was exhausted early, pricing changed nothing, and profit was identical to the
-> penny. That was correct: with identical days there is no misallocation to fix.
-> The test only means something when the days differ **and** the better one
-> sits beyond the lookahead, since a one-day lookahead already handles a
-> next-day spread by itself.
+> **A binding cap does not imply that a price helps.** Pricing can only move
+> cycles from a worse day to a better one, so on a horizon of identical days it
+> changes nothing and profit comes out the same to the penny, correctly. λ is
+> worth something only when the days differ **and** the better one sits beyond
+> the lookahead, since a one-day lookahead already handles a next-day spread by
+> itself. That is why the instance above is shaped the way it is.
 
 ## How λ is found: bisection on the price of a cycle
 
@@ -193,9 +218,9 @@ Four details that matter more than the bisection itself:
 
 - **Each iteration is a whole horizon**, a full rolling pass of 1,096 MILPs
   rather than a single window. The calibrated run therefore costs `1 + 12`
-  passes, which puts the three-year calibration in hours rather than minutes.
-  The pass is now `CycleOracle.at(λ, relaxed=False)`, which memoises and counts
-  it, so a method cannot spend one twice unnoticed.
+  passes, about 17 minutes over three years at the measured ~77 s a pass. The
+  pass is `CycleOracle.at(λ, relaxed=False)`, which memoises and counts it, so a
+  method cannot spend one twice unnoticed.
 - **The schedule travels with the price.** Returning `(λ, schedule)` means the
   winning pass is kept rather than re-run at the end.
 - **`tolerance` is a fraction of the budget, not of λ.** At `1e-3` a run counts

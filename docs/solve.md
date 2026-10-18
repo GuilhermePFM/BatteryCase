@@ -25,7 +25,7 @@ flowchart TD
     SC --> OUT["data/results/dispatch_schedule.csv"]
 ```
 
-## Why 1,096 programs and not one
+## Binary variables issue
 
 `battery-case dispatch` over the full three years is **1,096 mixed-integer
 programs**. The horizon carries a binary per period, the §4.3 exclusivity of
@@ -39,28 +39,10 @@ window length:
 | 1 week | ~3 s |
 | 1 fortnight | 5–17 s, depending which fortnight |
 
-Extrapolating that to 52,608 periods is not a plan, so the horizon is walked
-instead. The full measurements, including the whole horizon posed as one
+Running the whole horizon in one go is too heavy. The full measurements, including the whole horizon posed as one
 program, are in [`model/tractability.md`](model/tractability.md).
 
-## One window
-
-```mermaid
-flowchart LR
-    subgraph W1["window 1 · one MILP, 96 periods"]
-        direction LR
-        C1["committed · 48p"] --- L1["lookahead · discarded"]
-    end
-    subgraph W2["window 2"]
-        direction LR
-        C2["committed · 48p"] --- L2["lookahead · discarded"]
-    end
-    subgraph W3["window 3"]
-        direction LR
-        C3["committed · 48p"] --- L3["lookahead · discarded"]
-    end
-    W1 -->|"S, n_cyc"| W2 -->|"S, n_cyc"| W3
-```
+## Decomposing the problem
 
 Each window is solved with a day of foresight and committed for only half of
 what it solved. The lookahead exists so that the committed day is not decided as
@@ -148,7 +130,7 @@ few minutes, with a progress line on stderr.
 
 ## Is one day of foresight enough?
 
-On this data, yes, and it is checked rather than assumed. Over June 2018:
+On this data, yes. June 2018:
 
 | Configuration | Profit | Against the 1d + 1d baseline |
 | --- | --: | --- |
@@ -161,5 +143,4 @@ whole week at a time earns *exactly* the same. The state of charge a 4 MWh store
 can carry across midnight is worth at most two hours of discharge, so its
 decisions do not reach far beyond the day they are taken in.
 
-The caveat is in [validation](validation.md#still-open): this is one month, and
-a month where the cycle budget mattered would test it harder.
+The caveat is we do not have a guarantee it will work on any problem.

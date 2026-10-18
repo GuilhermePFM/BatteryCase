@@ -1,7 +1,6 @@
 # Pricing the cycle budget: two methods, measured
 
-*Why the subproblem had to change before a second method was possible, and what
-each method costs.*
+*What the two methods need from the subproblem, and what each of them costs.*
 
 [← README](../../README.md) · [model](model.md) · [cycle budget](../cycle-budget.md) ·
 [architecture](../architecture.md) · [solve](../solve.md) · [validation](../validation.md)
@@ -11,7 +10,7 @@ each method costs.*
 §6 of the [write-up](model.md) describes two ways to find the charge `λ`
 that rations a binding cycle budget: a bisection on cycle use, and Kelley's
 cutting-plane method on the Lagrangian dual. Both are implemented
-([architecture §4](../architecture.md#4-two-ways-to-price-the-cycle-budget)) and
+([architecture §4](../architecture.md#4-how-to-obtain-the-lagrangian-price-cutting-planes-and-bissection)) and
 both are selectable:
 
 ```bash
@@ -28,13 +27,14 @@ three-year horizon, measured at about 77 seconds
 ([§2](#the-whole-horizon-with-no-truth-to-check-against)). The pass count is
 what a method costs.
 
-## 1. The subproblem had to change first
+## 1. What a pass has to report
 
 To price a constraint you must **remove** it from the subproblem: the charge
-replaces the constraint, it does not accompany it. The windows did both. They
-capped the cumulative cycle count *and* charged `λ` for it, so cycle use was
-clipped at the budget by construction and the only thing a pass could report was
-whether the clip was reached.
+replaces the constraint, it does not accompany it. A window that caps the
+cumulative cycle count *and* charges `λ` for it clips cycle use at the budget by
+construction, so the only thing such a pass can report is whether the clip was
+reached. That single bit is all bisection needs; it is not enough for a
+cutting-plane method, which needs a value and a slope.
 
 Measured on the three-day instance of `tests/test_pricing.py` (two modest days,
 then a dear one, one cycle of budget), the same `λ` through both subproblems:
@@ -48,9 +48,9 @@ then a dear one, one cycle of budget), the same `λ` through both subproblems:
 
 The capped column is flat: **the subgradient is zero at every charge**. A
 subgradient of zero reads as "already at the minimum", so a cutting-plane or
-subgradient method handed that signal stops dead at `λ = 0`. The fault lies with
-the signal rather than with bisection, which was the right tool for the one bit
-it was given.
+subgradient method handed that signal stops dead at `λ = 0`. The limitation is
+in the signal, not in bisection, which asks only for the one bit a capped pass
+can give.
 
 The relaxed column is a usable derivative. At `λ = 0` the horizon wants three
 cycles against a budget of one, so the subgradient is −2: the charge is too low,
@@ -59,16 +59,16 @@ is the optimality condition. £300 is therefore the shadow price, where the
 bisection's £1,435.55 is the top of a plateau
 ([cycle budget](../cycle-budget.md#what-the-search-is-searching-over)).
 
-> [!WARNING]
-> **The bound was also a cap.** Omitting `cycle_life_cap` from the block list
-> used to change nothing at all, leaving the three-day answer at 1.000 cycles
-> and £1,435.79, because `cycle_budget` was *also* the upper bound of every
-> `n_cyc(t)` variable in `DispatchVariables.declare`. The row was the redundant
-> copy, as §4.6 says, and the bound was doing the work. `n_cyc` is now declared
-> without an upper bound, which makes `cycle_life_cap` the only place the budget
-> is imposed and `blocks` a real relaxation lever.
-> `tests/test_constraints.py` pins the free bound, and `tests/test_pricing.py`
-> pins that a relaxed pass overspends.
+> [!IMPORTANT]
+> **The budget must be a row and nothing else.** A relaxed pass only relaxes if
+> dropping `cycle_life_cap` is the only thing that imposes the budget. Were
+> `cycle_budget` *also* the upper bound of every `n_cyc(t)` variable in
+> `DispatchVariables.declare` — which §4.6 notes is the cheaper-looking way to
+> write the same feasible set — omitting the block would change nothing, the
+> bound doing the work the row is supposed to do, and the relaxed column above
+> would be identical to the capped one. So `n_cyc` is declared free, making
+> `blocks` a real relaxation lever. `tests/test_constraints.py` pins the free
+> bound, and `tests/test_pricing.py` pins that a relaxed pass overspends.
 
 ## 2. What each method costs, against a known answer
 
@@ -155,11 +155,9 @@ days and ten over three years, against the seven to nine the 1-to-90-day rows
 spend. Bisection's 13 is a constant as well, so its 1.5× stays 1.5×: roughly 17
 minutes against 13 on the full horizon.
 
-**A pass is far cheaper than this document used to claim.** Three years prices
-in 12 min 49 s end to end, about 77 s a pass, where the text said ten minutes a
-pass and hours of compute — a figure that predated the rolling decomposition and
-was never remeasured against it. Per window MILP that is 0.070 s over three
-years against 0.043–0.049 s at 180 and 365 days: the cost is near enough linear
+**A pass costs about 77 seconds.** Three years prices in 12 min 49 s end to
+end, ten passes. Per window MILP that is 0.070 s over three years against
+0.043–0.049 s at 180 and 365 days: the cost is near enough linear
 in the horizon, with the full run half again as dear per window. That last part
 is measured, not explained.
 
@@ -233,7 +231,7 @@ None of the three reasons is profit:
   of §5 the horizon spends 3,443, so the cap does not bind, `λ* = 0`, and both
   methods stop after a single pass, which `tests/test_pricing.py` asserts. All of
   this serves the pro-rated 1,500-cycle reading, and quotas.
-- **The three-year priced run has no ground truth.** It is now measured — 10
+- **The three-year priced run has no ground truth.** It is measured — 10
   passes, 12 min 49 s, λ = £30.17 — but the exact MILP that validated the bound
   at 30 days cannot be built at this size, so nothing independent confirms the
   £184,008.73. The bound is what stands in for it, and it is 1.73% away.

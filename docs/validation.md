@@ -1,6 +1,6 @@
 # Validation
 
-*What is checked, what checking found, and what a reviewer should still doubt.*
+*What is checked, what the checks pin down, and what a reviewer should still doubt.*
 
 [← README](../README.md) · [data](data.md) · [architecture](architecture.md) ·
 [solve](solve.md) · [cycle budget](cycle-budget.md)
@@ -29,27 +29,29 @@ uv run pytest        # 64 tests, ~10 s. The MILP tests need no spreadsheet,
 | `test_grid.py` | 5 | Hourly prices repeated across their pair, the [mislabelled spring hour](data.md#the-quirks-surfaced-and-deliberately-not-repaired) relabelled without reordering prices, whole-hour slicing, mismatched resolutions rejected |
 | `test_schedule.py` | 5 | Revenue priced on energy *delivered* not drawn, solver noise reported as zero, §4.7 volumes, empty-schedule summary |
 | `test_data_io.py` | 4 | The spec against Attachment 1, both series at their native resolutions, the clock-change artefacts flagged |
-| `test_constraints.py` | 13 | Each constraint block against the rows it adds, without a solver: the named rows per period, §4.5 tying only the second half of each hour, the opening state read only in period 0, `DEFAULT_BLOCKS` accounting for every row the assembled model holds, and §4.6's cap left free as a bound so that it can be relaxed |
+| `test_constraints.py` | 13 | Each constraint block against the rows it adds, without a solver: the named rows per period, §4.5 tying only the second half of each hour, the opening state read only in period 0, `DEFAULT_BLOCKS` accounting for every row the assembled model holds, and §4.6's cap imposed as a row with `n_cyc` left free, so that it can be relaxed |
 | `test_pricing.py` | 14 | The two cycle-budget pricers of §6: that a relaxed pass really overspends the budget and a capped one reports no usable slope, that the oracle counts and reuses its passes, the master LP's envelope minimum against cuts whose answer is known on paper, both methods reaching the same schedule, and the dual bound holding above an exactly solved optimum |
 | `test_cli.py` | 2 | Both commands end to end, including the written schedule's dates and length |
 
 A strict `mypy` pass and `ruff` run alongside.
 
-## What checking found
+## Two settings the checks pin down
 
-**A 1.36 µW artefact.** Verifying the saved three-year schedule against §4.3
-failed on one period out of 52,608. The solver had returned a charge variable at
-1e-6 MW while discharging, and the zero-cleaning threshold sat at exactly 1e-6.
-A MILP is solved to a tolerance, so the threshold is now **10 W**, an order of
-magnitude above the solver's feasibility tolerance, with a test for it. Profit
-was unchanged to the penny, and the schedule now passes the check with no
-post-processing.
+**The zero-cleaning threshold is 10 W.** A MILP is solved to a feasibility
+tolerance, so a solver may return a charge variable at 1e-6 MW in a period where
+the battery discharges — enough to fail a §4.3 check on one period out of
+52,608, while being 1.36 µW of physically meaningless noise. The threshold sits
+an order of magnitude above the solver's tolerance so that the saved schedule
+verifies as it stands, with no post-processing, and a test holds it there.
+Cleaning at that level moves profit by nothing at the penny.
 
-**A lost output file.** The first full run printed its results and then died
-writing parquet, which needs an engine this project doesn't ship. The default is
-CSV now, covered by a CLI test.
+**The default output format is CSV.** Parquet is offered through `--out` but
+needs an engine this project does not ship, so a run that printed its results
+could still fail at the write. CSV needs nothing extra, and a CLI test covers
+the written file end to end.
 
-Neither was visible in a run that completed and printed plausible numbers.
+Neither would be visible in a run that completed and printed plausible
+numbers.
 
 ## Still open
 

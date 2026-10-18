@@ -152,7 +152,7 @@ One pass of the horizon at one charge, memoised on `(price, relaxed)` and counte
 
 **`CyclePricer` · `PRICERS`** · `modelling/pricing.py` · `modelling/pricers.py` · §6
 
-The seam between the budget's price and the method that finds it, and the catalogue of methods behind it. Covered in [§4](#4-two-ways-to-price-the-cycle-budget).
+The seam between the budget's price and the method that finds it, and the catalogue of methods behind it. Covered in [§4](#4-how-to-obtain-the-lagrangian-price-cutting-planes-and-bissection).
 
 **`PricingResult` · `DualBound`** · `modelling/pricing.py` · §6
 
@@ -220,7 +220,7 @@ problem). `ModelContext` is the **Parameter Object** that keeps the strategy sig
   `hourly_commitment` lifts profit from £1,231.12 to £1,249.80, so the hourly
   commitment of §4.5 costs about £19 a week, measured with no new model code to
   write or keep correct. `relaxing(*blocks)` is that omission as a named
-  operation, and it is what [§4](#4-two-ways-to-price-the-cycle-budget) builds
+  operation, and it is what [§4](#4-how-to-obtain-the-lagrangian-price-cutting-planes-and-bissection) builds
   the Lagrangian relaxation of the cycle budget from. Two caveats, both stated in
   the blocks' own docstrings: a constraint that is also a *variable bound* is
   not relaxed by dropping its row, which is why §4.6's cap is a row alone, and
@@ -288,7 +288,7 @@ that an outer search exists.
 | --- | --- | --- |
 | **Strategy** | `CyclePricer` and its two implementations | The search rule is the only thing that varies between methods, and it varies behind one call. |
 | **Protocol**, not an ABC | `CyclePricer` | Matches `Dispatcher`, which is already a `Protocol`: a pricer inherits nothing, and an experiment in a notebook satisfies the seam by having the method. |
-| **Oracle** | `CycleOracle.at` | The ten-minute pass is written once, memoised and counted in one place, so the pass count that decides the comparison is measured rather than self-reported. |
+| **Oracle** | `CycleOracle.at` | The whole-horizon pass is written once, memoised and counted in one place, so the pass count that decides the comparison is measured rather than self-reported. |
 | **Decorator** | `CalibratedDispatcher` | Implements `Dispatcher` by pricing first and dispatching second, so nothing downstream changes. |
 | **Registry** | `PRICERS` | One dict turns a CLI string into a method and is the list a reviewer reads. The key *is* the name, with no `name` attribute on the classes, the same decision as the blocks. |
 | **Parameter object** | `CycleOracle`, `DualPoint` | Keeps `price(oracle)` at one argument instead of five, which is what lets the protocol stay small. |

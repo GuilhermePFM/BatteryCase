@@ -230,10 +230,10 @@ $$
 define the same feasible set. The implementation uses the **first**: one row on
 the final period, with $n_{\text{cyc}}(t)$ left otherwise unbounded above. The
 cheaper-looking alternative, the cap as the upper bound of every variable at no
-cost in rows, was what the code did first, and it makes the cap impossible to
-*relax*: §6 prices the budget by removing it from the subproblem,
-and a bound removes nothing. Declaring the variable free keeps one row and one
-place where the budget is imposed. The variable is bounded regardless, through
+cost in rows, makes the cap impossible to *relax*: §6 prices the budget by
+removing it from the subproblem, and a bound removes nothing. Declaring the
+variable free keeps one row and one place where the budget is imposed, which is
+what the pricing methods need. The variable is bounded regardless, through
 the accumulation above and the rate limits of §4.3.
 
 The equivalence of the two forms rests on monotonicity and on $\overline{L}$
@@ -498,7 +498,7 @@ measured comparison of the two against exactly solved instances, and the
 validation of the bound are in
 [`cycle-price-experiments.md`](cycle-price-experiments.md); the architecture
 of the seam is in
-[`architecture.md`](../architecture.md#4-two-ways-to-price-the-cycle-budget).
+[`architecture.md`](../architecture.md#4-how-to-obtain-the-lagrangian-price-cutting-planes-and-bissection).
 
 ### The cycle budget on this data
 
