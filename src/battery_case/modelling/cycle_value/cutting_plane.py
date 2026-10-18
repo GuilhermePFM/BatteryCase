@@ -28,6 +28,7 @@ this method over a one-dimensional search.
 from __future__ import annotations
 
 import math
+import time
 from dataclasses import dataclass
 
 import pulp
@@ -39,6 +40,7 @@ from battery_case.modelling.cycle_value.oracle import (
     DualSearchResult,
 )
 from battery_case.modelling.window_problem import default_solver
+from battery_case.reporting import Column, SearchPlan, passes_phrase
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,8 +57,27 @@ class CuttingPlaneSearch:
     tolerance: float = 1e-4
     max_passes: int = 20
 
+    @property
+    def display(self) -> SearchPlan:
+        """How the method describes itself, and the two columns only it fills."""
+        return SearchPlan(
+            method="cutting-plane",
+            detail=(
+                f"gap \u2264 {self.tolerance:.2%} \u00b7 \u2264 {self.max_passes} passes "
+                f"\u00b7 \u03bb \u2208 [0, {self.upper_bound:,.0f}]"
+            ),
+            max_passes=self.max_passes,
+            passes_known=False,
+            columns=(Column("L(\u03bb) \u00a3", 11), Column("gap", 7)),
+            tolerance=self.tolerance,
+        )
+
     def search(self, oracle: CycleOracle) -> DualSearchResult:
         """Search for the cycle value on relaxed passes, then recover a plan."""
+        reporter = oracle.reporter
+        reporter.phase("calibrate", "running", f"cutting-plane \u00b7 {self.display.detail}")
+        reporter.search_started(self.display)
+
         cuts: list[DualPoint] = []
         cycle_value = 0.0
         envelope = -math.inf
@@ -65,16 +86,25 @@ class CuttingPlaneSearch:
             cuts.append(oracle.at(cycle_value, relaxed=True))
             best_dual = min(cut.lagrangian for cut in cuts)
 
+            started = time.perf_counter()
             envelope, next_cycle_value = solve_master(cuts, self.upper_bound)
-            if best_dual - envelope <= self.tolerance * abs(best_dual):
+            master_ms = 1e3 * (time.perf_counter() - started)
+
+            converged = best_dual - envelope <= self.tolerance * abs(best_dual)
+            self._report_pass(oracle, cuts, envelope, next_cycle_value, master_ms, converged)
+            if converged:
                 break
             cycle_value = next_cycle_value
 
         best = min(cuts, key=lambda cut: cut.lagrangian)
         bound = DualBound(lagrangian=best.lagrangian, envelope=envelope)
+        reporter.phase("calibrate", "done", f"converged \u00b7 {passes_phrase(oracle.passes)}")
+        reporter.note(f"cycle value   {best.cycle_value:>12,.2f} \u00a3/cycle")
+        reporter.note(f"dual gap      {bound.relative_gap:>12.3%}")
+        reporter.note(f"profit \u2264      {bound.lagrangian:>12,.0f} \u00a3  "
+                      "weak-duality bound on the constrained optimum")
 
-        # Primal recovery: a relaxed pass is an evaluation, not a deliverable.
-        deliverable = best if best.within_budget else oracle.at(best.cycle_value, relaxed=False)
+        deliverable = self._recover(oracle, best)
 
         return DualSearchResult(
             cycle_value=best.cycle_value,
@@ -84,6 +114,76 @@ class CuttingPlaneSearch:
             passes=oracle.passes,
             bound=bound,
         )
+
+    def _report_pass(
+        self,
+        oracle: CycleOracle,
+        cuts: list[DualPoint],
+        envelope: float,
+        next_cycle_value: float,
+        master_ms: float,
+        converged: bool,
+    ) -> None:
+        """Announce the cut the pass just bought, and what the master did with it.
+
+        The three numbers below do not exist until the pass ends, and they are
+        the method's whole argument for itself: a slope, an envelope that is a
+        real lower bound, and a next ``λ`` that is a decision rather than a step.
+        """
+        reporter = oracle.reporter
+        point = cuts[-1]
+        best_dual = min(cut.lagrangian for cut in cuts)
+        gap = (best_dual - envelope) / abs(best_dual) if best_dual else 0.0
+
+        reporter.pass_finished(
+            oracle.pass_report(point, gap=gap),
+            cells=(f"{point.lagrangian:,.0f}", f"{gap:.2%}"),
+        )
+        reporter.note(
+            f"cut {len(cuts)}   L \u2265 {point.lagrangian:,.0f} "
+            f"+ ({point.subgradient:,.1f})\u00b7(\u03bb \u2212 {point.cycle_value:,.2f})"
+        )
+        reporter.note(
+            f"master  {len(cuts)} cuts \u00b7 2 vars \u00b7 {master_ms:,.0f} ms"
+            f"      envelope {envelope:,.0f}"
+        )
+        if not converged:
+            reporter.note(f"next \u03bb  {next_cycle_value:,.2f}   = envelope minimiser")
+
+    def _recover(self, oracle: CycleOracle, best: DualPoint) -> DualPoint:
+        """Turn the best evaluation into a deliverable plan, or say why none is needed.
+
+        A relaxed pass is an evaluation, not a deliverable. This step therefore
+        sometimes runs and sometimes does not, which is exactly why it has to
+        report *both* outcomes — an unannounced sixth pass after a converged
+        search reads as a bug, and a silently skipped one reads as an omission.
+        """
+        reporter = oracle.reporter
+        if best.within_budget:
+            reporter.phase(
+                "recover",
+                "done",
+                f"skipped, the relaxed plan is already within budget "
+                f"({best.cycles:,.1f} cycles)",
+            )
+            return best
+
+        reporter.phase(
+            "recover",
+            "running",
+            f"capped at {oracle.budget:,.0f} cycles \u00b7 \u03bb = {best.cycle_value:,.2f}",
+        )
+        reporter.note(
+            f"why  the best relaxed pass spent {best.cycles:,.1f} cycles, "
+            f"{best.cycles / oracle.budget - 1:.1%} over budget \u2014"
+        )
+        reporter.note("     a relaxed pass is an evaluation, not a deliverable plan")
+
+        capped = oracle.at(best.cycle_value, relaxed=False, label="recovery")
+        dash = "\u2014"
+        reporter.pass_finished(oracle.pass_report(capped, recovery=True), cells=(dash, dash))
+        reporter.phase("recover", "done", "plan is within budget", elapsed=capped.elapsed)
+        return capped
 
 
 def solve_master(cuts: list[DualPoint], upper_bound: float) -> tuple[float, float]:

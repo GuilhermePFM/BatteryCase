@@ -27,6 +27,7 @@ from battery_case.modelling.cycle_value.oracle import (
     DualPoint,
     DualSearchResult,
 )
+from battery_case.reporting import Column, SearchPlan, passes_phrase
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,14 +44,59 @@ class BisectionSearch:
     tolerance: float = SPENT_TOLERANCE
     max_iterations: int = 12
 
+    @property
+    def display(self) -> SearchPlan:
+        """How the method describes itself, and the three columns only it fills.
+
+        ``passes_known`` is ``True`` here and nowhere else: the cost is
+        ``1 + max_iterations`` whatever the data, so the share of the *run*
+        that is done is a measurement rather than a projection, and the
+        console can draw it.
+        """
+        return SearchPlan(
+            method="bisection",
+            detail=(
+                f"{1 + self.max_iterations} passes "
+                f"\u00b7 \u03bb \u2208 [0, {self.upper_bound:,.0f}] "
+                f"\u00b7 spent within {self.tolerance:.1%} counts as used up"
+            ),
+            max_passes=1 + self.max_iterations,
+            passes_known=True,
+            columns=(
+                Column("spent?", 7),
+                Column("bracket \u00a3/cycle", 18),
+                Column("width", 8),
+            ),
+        )
+
     def search(self, oracle: CycleOracle) -> DualSearchResult:
         """Find the cycle value, on capped passes, and return the plan with it."""
+        reporter = oracle.reporter
+        reporter.phase("calibrate", "running", f"bisection \u00b7 {self.display.detail}")
+        reporter.search_started(self.display)
+
         spent_in_full = oracle.budget * (1.0 - self.tolerance)
 
         best = oracle.at(0.0, relaxed=False)
-        if best.cycles < spent_in_full:
+        binding = best.cycles >= spent_in_full
+        reporter.pass_finished(
+            oracle.pass_report(best),
+            cells=_cells(best, spent_in_full, bracket=None),
+        )
+        if not binding:
             # The budget is not binding: no rationing is needed, and the
-            # uncharged plan is already the answer.
+            # uncharged plan is already the answer. Without a line saying so,
+            # a thirteen-pass method finishing in one pass reads as a crash.
+            reporter.phase(
+                "calibrate",
+                "done",
+                f"done in 1 pass of a possible {1 + self.max_iterations}",
+            )
+            reporter.note(
+                f"the uncharged plan spends {best.cycles:,.1f} of "
+                f"{oracle.budget:,.0f} cycles, so the budget never binds"
+            )
+            reporter.note("cycle value          0.00 \u00a3/cycle")
             return _result(0.0, best, oracle)
 
         low, high = 0.0, self.upper_bound
@@ -62,8 +108,38 @@ class BisectionSearch:
                 low, best_cycle_value, best = cycle_value, cycle_value, point
             else:
                 high = cycle_value
+            reporter.pass_finished(
+                oracle.pass_report(point),
+                cells=_cells(point, spent_in_full, bracket=(low, high)),
+            )
 
+        reporter.phase("calibrate", "done", f"bracketed \u00b7 {passes_phrase(oracle.passes)}")
+        reporter.note(f"cycle value   {best_cycle_value:>12,.2f} \u00a3/cycle")
+        reporter.note(f"bracket       [{low:,.2f}, {high:,.2f}]  width {high - low:,.3f}")
+        reporter.note(
+            "dual bound    not available \u2014 a capped pass reports one bit, "
+            "not a slope"
+        )
         return _result(best_cycle_value, best, oracle)
+
+
+def _cells(
+    point: DualPoint,
+    spent_in_full: float,
+    bracket: tuple[float, float] | None,
+) -> tuple[str, str, str]:
+    """The three columns this method fills, and the one bit it actually reads.
+
+    A capped pass can never exceed the budget, so the signed overspend of the
+    shared columns is uninformative here; what the method reads is whether the
+    budget was *used up*, which is this ``yes``/``no`` and nothing else.
+    """
+    binding = point.cycles >= spent_in_full
+    spent = "\u2713 yes" if binding else "\u2717 no"
+    if bracket is None:
+        return spent, "binding, proceed" if binding else "not binding", "\u2014"
+    low, high = bracket
+    return spent, f"[{low:>7,.2f},{high:>8,.2f}]", f"{high - low:,.3f}"
 
 
 def _result(cycle_value: float, point: DualPoint, oracle: CycleOracle) -> DualSearchResult:

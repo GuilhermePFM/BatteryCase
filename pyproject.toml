@@ -55,6 +55,9 @@ select = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = [
+    "slow: re-derives a reference value by an exact solve; seconds, not milliseconds",
+]
 
 [tool.mypy]
 python_version = "3.12"

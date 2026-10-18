@@ -78,3 +78,22 @@ def test_summary_reports_nan_prices_when_nothing_is_traded() -> None:
     assert np.isnan(figures["mean_sell_price_gbp_per_mwh"])
     assert figures["periods_charging"] == 0
     assert list(plan.columns) == list(COLUMNS)
+
+
+def test_summary_separates_closing_storage_from_remaining_capacity() -> None:
+    """The two closing figures answer different questions (§4.7, §7).
+
+    ``final_storage_mwh`` is what is left in the store; ``final_usable_volume_mwh``
+    is how much the store could still hold after the cycles spent degrading it.
+    """
+    params = ModelParameters.from_spec(SPEC)
+    _, plan = _schedule(
+        storage_mwh=np.array([1.0, 2.0, 1.5, 0.75]),
+        cycles=np.array([0.0, 0.0, 100.0, 200.0]),
+    )
+    figures = summarise(plan, params)
+
+    assert figures["final_storage_mwh"] == 0.75
+    # rho = 1e-5 per cycle over 200 cycles: 0.2% off the 4 MWh nominal volume.
+    assert figures["final_usable_volume_mwh"] == pytest.approx(3.992)
+    assert figures["final_storage_mwh"] < figures["final_usable_volume_mwh"]

@@ -20,6 +20,7 @@ from battery_case.modelling.cycle_value.searches import DEFAULT_SEARCH, SEARCHES
 from battery_case.modelling.parameters import ModelParameters
 from battery_case.modelling.periods import SettlementPeriods, build_periods
 from battery_case.modelling.rolling_horizon import RollingPolicy
+from battery_case.reporting import NullReporter, Reporter
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,15 +36,30 @@ class CalibratedPolicy:
 
     search: DualSearch = SEARCHES[DEFAULT_SEARCH]
     policy: RollingPolicy = field(default_factory=RollingPolicy)
+    reporter: Reporter = field(default_factory=NullReporter, repr=False)
 
     def run(self, spec: BatterySpec, prices: MarketPrices) -> pd.DataFrame:
         """Dispatch against both price series, from the raw inputs."""
         settlement = build_periods(prices)
         return self.calibrate_and_dispatch(settlement, ModelParameters.from_spec(spec)).plan
 
+    def oracle_for(self, settlement: SettlementPeriods, params: ModelParameters) -> CycleOracle:
+        """The oracle this policy would spend passes on.
+
+        Handing it out is what lets a caller survive an interruption: the
+        oracle holds every pass solved so far, so a run stopped halfway still
+        has a best plan to write.
+        """
+        return CycleOracle(
+            settlement=settlement, params=params, policy=self.policy, reporter=self.reporter
+        )
+
     def calibrate_and_dispatch(
-        self, settlement: SettlementPeriods, params: ModelParameters
+        self,
+        settlement: SettlementPeriods,
+        params: ModelParameters,
+        *,
+        oracle: CycleOracle | None = None,
     ) -> DualSearchResult:
         """Run the search over a prepared axis and return everything it found."""
-        oracle = CycleOracle(settlement=settlement, params=params, policy=self.policy)
-        return self.search.search(oracle)
+        return self.search.search(oracle or self.oracle_for(settlement, params))

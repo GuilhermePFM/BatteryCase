@@ -26,6 +26,7 @@ Two couplings reach beyond a single window:
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -42,6 +43,27 @@ from battery_case.modelling.window_problem import default_solver, solve_window
 
 #: Periods in a day — the default window and lookahead length.
 PERIODS_PER_DAY = 48
+
+@dataclass(frozen=True, slots=True)
+class WindowProgress:
+    """How far a pass has got, as the window that was just committed.
+
+    The window, not the period, is the unit of work: one window is one MILP
+    solve, so a rate quoted in windows per second is the rate that predicts
+    what is left. ``at`` is where in the horizon the pass has reached, which
+    is the one thing a period count cannot tell a reader.
+    """
+
+    window: int
+    windows: int
+    periods_done: int
+    periods: int
+    at: pd.Timestamp
+
+    @property
+    def fraction(self) -> float:
+        return self.window / self.windows if self.windows else 1.0
+
 
 _DECISIONS = (
     "charge_1_mw",
@@ -74,7 +96,7 @@ class RollingPolicy:
     cycle_value: float = 0.0
     blocks: tuple[ConstraintBlock, ...] = DEFAULT_BLOCKS
     time_limit: float | None = None
-    on_window: Callable[[int, int], None] | None = None
+    on_window: Callable[[WindowProgress], None] | None = None
 
     def __post_init__(self) -> None:
         if self.commit_periods < 1:
@@ -84,6 +106,10 @@ class RollingPolicy:
         for name in ("commit_periods", "lookahead_periods"):
             if getattr(self, name) % PERIODS_PER_HOUR:
                 raise ValueError(f"{name} must be a whole number of hours")
+
+    def window_count(self, periods: int) -> int:
+        """How many windows cover ``periods`` — the pass length, known up front."""
+        return math.ceil(periods / self.commit_periods)
 
     def run(self, spec: BatterySpec, prices: MarketPrices) -> pd.DataFrame:
         """Dispatch against both price series, from the raw inputs."""
@@ -95,7 +121,8 @@ class RollingPolicy:
         parts: dict[str, list[np.ndarray]] = {name: [] for name in _DECISIONS}
         state = EMPTY_BATTERY
 
-        for start in range(0, len(settlement), self.commit_periods):
+        windows = self.window_count(len(settlement))
+        for index, start in enumerate(range(0, len(settlement), self.commit_periods), start=1):
             window = settlement.window(start, self.commit_periods + self.lookahead_periods)
             solution = solve_window(
                 window,
@@ -110,7 +137,15 @@ class RollingPolicy:
                 parts[name].append(getattr(solution, name)[:committed])
             state = solution.state_after(committed)
             if self.on_window is not None:
-                self.on_window(start + committed, len(settlement))
+                self.on_window(
+                    WindowProgress(
+                        window=index,
+                        windows=windows,
+                        periods_done=start + committed,
+                        periods=len(settlement),
+                        at=window.timestamps[0],
+                    )
+                )
 
         decisions = {name: np.concatenate(values) for name, values in parts.items()}
         return build_plan(settlement, params, **decisions)

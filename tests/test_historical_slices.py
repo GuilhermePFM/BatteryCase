@@ -159,7 +159,8 @@ def test_summary_reconciles_with_the_known_optimum(
     case: Slice, dispatch: Callable[[Slice], pd.DataFrame], params: ModelParameters
 ) -> None:
     """The headline figures of §7 add up to the same profit, by a second route."""
-    summary = summarise(dispatch(case), params)
+    plan = dispatch(case)
+    summary = summarise(plan, params)
 
     assert summary["profit_gbp"] == pytest.approx(case.optimum_gbp, rel=_OPTIMALITY_RTOL)
     assert summary["income_gbp"] - summary["cost_gbp"] == pytest.approx(
@@ -169,6 +170,8 @@ def test_summary_reconciles_with_the_known_optimum(
         pytest.approx(summary["profit_gbp"], abs=1e-6)
     )
     assert summary["cycles_used"] <= params.cycle_budget
+    assert summary["final_storage_mwh"] == plan["storage_mwh"].iloc[-1]
+    assert summary["final_storage_mwh"] <= summary["final_usable_volume_mwh"] + TOLERANCE
 
 
 @pytest.mark.parametrize("case", SLICES, ids=str)

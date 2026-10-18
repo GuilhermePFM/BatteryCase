@@ -99,6 +99,18 @@ def summarise(plan: pd.DataFrame, params: ModelParameters) -> pd.Series:
 
     Profit is the objective of §3 summed over the horizon. Capex and fixed opex
     are excluded, per §5: they do not depend on the dispatch decision.
+
+    ``income_gbp`` and ``cost_gbp`` split that profit by direction rather than
+    by market: income is what the delivered energy sold for, net of the
+    discharge loss, and cost is what the imported energy was bought for at the
+    meter, so it includes the share the charging loss never puts in the store.
+
+    The two closing figures are different quantities and are easy to confuse.
+    ``final_storage_mwh`` is the energy still in the battery when the horizon
+    ends — normally zero, since unsold energy earns nothing, and positive only
+    where the battery was paid to take it. ``final_usable_volume_mwh`` is
+    ``S_max(T)`` of §4.7, the capacity the store has left after degradation,
+    which falls from the nominal volume as cycles are spent.
     """
     charged = plan["charge_1_mw"] + plan["charge_2_mw"]
     discharged = plan["discharge_1_mw"] + plan["discharge_2_mw"]
@@ -131,7 +143,8 @@ def summarise(plan: pd.DataFrame, params: ModelParameters) -> pd.Series:
             "mean_sell_price_gbp_per_mwh": _per_mwh(income_gbp, delivered_mwh),
             "cycles_used": float(plan["cycles"].iloc[-1]),
             "cycle_budget": params.cycle_budget,
-            "final_volume_mwh": float(plan["effective_volume_mwh"].iloc[-1]),
+            "final_storage_mwh": float(plan["storage_mwh"].iloc[-1]),
+            "final_usable_volume_mwh": float(plan["effective_volume_mwh"].iloc[-1]),
             "periods": len(plan),
             "periods_charging": int((charged > _TOLERANCE).sum()),
             "periods_discharging": int((discharged > _TOLERANCE).sum()),

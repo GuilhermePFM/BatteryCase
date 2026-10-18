@@ -24,6 +24,7 @@ method's own choice, which is why a search is a search rule *and* a relaxation.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field, replace
 from typing import Protocol
 
@@ -33,6 +34,7 @@ from battery_case.modelling.constraints import DEFAULT_BLOCKS, UNCAPPED_BLOCKS
 from battery_case.modelling.parameters import ModelParameters
 from battery_case.modelling.periods import SettlementPeriods
 from battery_case.modelling.rolling_horizon import RollingPolicy
+from battery_case.reporting import NullReporter, PassReport, Reporter
 
 #: Fraction of the budget that may go unspent while it still counts as used up.
 SPENT_TOLERANCE = 1e-3
@@ -41,6 +43,10 @@ SPENT_TOLERANCE = 1e-3
 @dataclass(frozen=True, slots=True)
 class DualPoint:
     """One pass at one cycle value: everything either method could read from it.
+
+    ``index`` and ``elapsed`` are facts about the pass rather than about the
+    dual — which pass produced the point, and what it cost — and they are here
+    so a cached point can say which pass it was originally served from.
 
     ``lagrangian`` is ``L(λ)`` of §6 and ``subgradient`` is its exact
     subgradient *provided the pass maximised the relaxed problem* — which a
@@ -58,6 +64,8 @@ class DualPoint:
     plan: pd.DataFrame
     relaxed: bool
     within_budget: bool
+    index: int = 0
+    elapsed: float = 0.0
 
     @property
     def cut(self) -> tuple[float, float, float]:
@@ -111,12 +119,19 @@ class CycleOracle:
     The policy is the window scheme of §6; the oracle only ever varies the
     cycle value and the constraints, which is why both are fields of a frozen
     dataclass and a pass is a :func:`~dataclasses.replace` away.
+
+    It is also where a pass is *announced*. Every method goes through
+    :meth:`at`, so wiring the ``reporter`` here reports both methods and any
+    later one for free, and a cache hit is reported as a cache hit rather than
+    as a pass that finished implausibly fast.
     """
 
     settlement: SettlementPeriods
     params: ModelParameters
     policy: RollingPolicy = field(default_factory=RollingPolicy)
+    reporter: Reporter = field(default_factory=NullReporter, repr=False, compare=False)
     _points: list[DualPoint] = field(default_factory=list, repr=False, compare=False)
+    _reported: set[int] = field(default_factory=set, repr=False, compare=False)
     _cache: dict[tuple[float, bool], DualPoint] = field(
         default_factory=dict, repr=False, compare=False
     )
@@ -136,27 +151,76 @@ class CycleOracle:
         """Every pass solved, in the order it was asked for."""
         return tuple(self._points)
 
-    def at(self, cycle_value: float, *, relaxed: bool) -> DualPoint:
+    def at(self, cycle_value: float, *, relaxed: bool, label: str = "") -> DualPoint:
         """Dispatch the horizon charged ``cycle_value`` per cycle, and read the pass.
 
         ``relaxed`` drops the cycle budget from the model, leaving the cycle
         value as the only thing standing between the battery and spending every
         cycle it can. A capped pass keeps the budget, so its plan is deliverable
         as it stands and its subgradient is uninformative.
+
+        ``label`` is how the pass describes itself while it runs — ``relaxed``,
+        ``capped``, ``recovery`` — and reaches the reporter, not the model.
         """
         key = (cycle_value, relaxed)
-        if key not in self._cache:
-            self._cache[key] = self._solve(cycle_value, relaxed=relaxed)
-            self._points.append(self._cache[key])
-        return self._cache[key]
+        if key in self._cache:
+            return self._cache[key]
+
+        self.reporter.pass_started(self.passes + 1, cycle_value, relaxed=relaxed, label=label)
+        point = self._solve(cycle_value, relaxed=relaxed)
+        self._cache[key] = point
+        self._points.append(point)
+        return point
+
+    def pass_report(
+        self,
+        point: DualPoint,
+        *,
+        gap: float | None = None,
+        recovery: bool = False,
+    ) -> PassReport:
+        """The shared half of a table row, for a method to finish and report.
+
+        The columns here come off the point whatever found it; the ones that
+        differ between methods are the method's own, which is why this returns
+        a report rather than a line of text.
+
+        A point reported a second time was served from the cache: the method
+        asked for a cycle value it had already spent a pass on, and the row
+        should say so rather than imply a pass that took no time.
+        """
+        cached = point.index in self._reported
+        self._reported.add(point.index)
+        return PassReport(
+            index=point.index,
+            cycle_value=point.cycle_value,
+            relaxed=point.relaxed,
+            profit=point.profit,
+            cycles=point.cycles,
+            budget=self.budget,
+            lagrangian=point.lagrangian,
+            subgradient=point.subgradient,
+            within_budget=point.within_budget,
+            elapsed=point.elapsed,
+            cached=cached,
+            recovery=recovery,
+            gap=gap,
+        )
 
     def _solve(self, cycle_value: float, *, relaxed: bool) -> DualPoint:
         policy = replace(
             self.policy,
             cycle_value=cycle_value,
             blocks=UNCAPPED_BLOCKS if relaxed else DEFAULT_BLOCKS,
+            on_window=(
+                self.policy.on_window
+                if self.policy.on_window is not None
+                else self.reporter.window_done
+            ),
         )
+        started = time.perf_counter()
         plan = policy.dispatch(self.settlement, self.params)
+        elapsed = time.perf_counter() - started
 
         profit = float(plan["net_revenue_gbp"].sum())
         cycles = float(plan["cycles"].iloc[-1])
@@ -169,6 +233,8 @@ class CycleOracle:
             plan=plan,
             relaxed=relaxed,
             within_budget=cycles <= self.budget * (1.0 + SPENT_TOLERANCE),
+            index=self.passes + 1,
+            elapsed=elapsed,
         )
 
 
