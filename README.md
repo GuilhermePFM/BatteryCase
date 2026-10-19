@@ -175,19 +175,36 @@ flowchart TD
 | [`docs/model/tractability.md`](docs/model/tractability.md) | Solve time against window length, and the whole horizon as one MILP: the measurements behind decomposing it. |
 | [`docs/glossary.md`](docs/glossary.md) | Every term the model, the code and the write-up use, the one word chosen for each idea, and the renames that choice implied. |
 | [`docs/validation.md`](docs/validation.md) | The 118 tests, what checking found that thinking had not, and the questions still open. |
+| [`notebooks/02_results_analysis.ipynb`](notebooks/02_results_analysis.ipynb) | The dispatch read off the committed plan: every figure in `results.md` re-derived and diffed against the documented value, then the behaviour the prose only asserts — the price landscape, what the plan does with it, where the profit comes from, the cycle budget that did not bind, and the solver evidence. Solves nothing; runs in seconds. |
 
 ## Layout
 
 ```
-src/battery_case/   the package, described in docs/architecture.md
-tests/              118 tests, described in docs/validation.md
-data/raw/           the two spreadsheets supplied with the exercise
-data/results/       model outputs
-docs/brief/         the exercise brief, as supplied
-docs/model/         the formulation, plus the solver experiments behind it
-notebooks/          exploratory analysis
-scripts/            the measurement runs behind the documents (`make results`)
-Makefile            render targets for the documents, and `make results`
+src/battery_case/
+  cli.py              the two commands, `inputs` and `dispatch`, and every flag
+  data_io/            loaders.py, paths.py, quality.py — read the two
+                      spreadsheets and report what is wrong with them
+  data_models/        battery.py, market_prices.py — the spec and the price
+                      series, validated on construction
+  modelling/          the formulation: variables.py, constraints.py (§4),
+                      window_problem.py (one window's MILP), periods.py (the
+                      half-hourly axis), rolling_horizon.py (the decomposition),
+                      cycle_value/ (λ: cutting planes and bisection), policy.py,
+                      parameters.py, plan.py
+  reporting.py        the headline figures and the progress phases
+tests/                118 tests, described in docs/validation.md
+data/raw/             the two spreadsheets supplied with the exercise
+data/results/         model outputs, written by a run and not committed
+docs/brief/           the exercise brief, as supplied
+docs/model/           the formulation (model.md, model-stochastic.md), the
+                      results and solver experiments, the CSVs `make results`
+                      rewrites, plus figures/ and the latex/ render config
+docs/*.md             data, architecture, solve, cycle-budget, bisection,
+                      validation, glossary
+notebooks/            exploratory analysis, paired .py and .ipynb
+scripts/              the measurement runs behind the documents (`make results`)
+Makefile              render targets for the documents, and `make results`
+pyproject.toml        deps, and the ruff / mypy / pytest configuration
 ```
 
 ---

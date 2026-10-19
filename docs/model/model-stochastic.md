@@ -151,7 +151,7 @@ $v \in \{S, n_{\text{cyc}}\}$,
 $$
 v(n, 0) \;:=\;
 \begin{cases}
-v\bigl(a(n), 48\bigr) & n \neq r \\[4pt]
+v\bigl(a(n), 48\bigr) & n \neq r \\
 0 & n = r
 \end{cases}
 $$
@@ -250,7 +250,7 @@ M§4.3 and M§4.4, per node, with its own binary.
 
 $$
 \begin{aligned}
-0 \;\leq\; c_1(n,\tau) + c_2(n,\tau) &\;\leq\; \overline{C} \, u(n,\tau) \\[4pt]
+0 \;\leq\; c_1(n,\tau) + c_2(n,\tau) &\;\leq\; \overline{C} \, u(n,\tau) \\
 0 \;\leq\; d_1(n,\tau) + d_2(n,\tau) &\;\leq\; \overline{D} \, \bigl(1 - u(n,\tau)\bigr)
 \end{aligned}
 $$

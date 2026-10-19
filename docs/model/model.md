@@ -19,6 +19,10 @@ prices, so the price series are exogenous inputs. They are also taken as
 [`model-stochastic.md`](model-stochastic.md) states the same model with that
 second assumption dropped.
 
+The full methodology, this note and the stochastic one in a single typeset
+document, is in [`battery-dispatch.pdf`](battery-dispatch.pdf) (`make
+pdf-combined`).
+
 The problem is posed as a mixed-integer linear program on a **common half-hourly
 axis**. Market 1 settles natively at that resolution; Market 2 settles hourly,
 and is represented by holding its decision variables constant across the two
@@ -93,7 +97,7 @@ where
 
 $$
 \begin{aligned}
-R(t) &= \frac{p_1(t) (1 - e_d) d_1(t) + p_2(t) (1 - e_d) d_2(t) - p_1(t) \cdot c_1(t) - p_2(t) \cdot c_2(t)}{2} \\[4pt]
+R(t) &= \frac{p_1(t) (1 - e_d) d_1(t) + p_2(t) (1 - e_d) d_2(t) - p_1(t) \cdot c_1(t) - p_2(t) \cdot c_2(t)}{2} \\
      &= \frac{p_1(t)\,\bigl((1 - e_d)\,d_1(t) - c_1(t)\bigr) + p_2(t)\,\bigl((1 - e_d)\,d_2(t) - c_2(t)\bigr)}{2}
 \end{aligned}
 $$
@@ -142,8 +146,8 @@ simultaneously imposes the rate limits across both markets.
 
 $$
 \begin{aligned}
-0 \leq c_1(t) + c_2(t) &\leq \overline{C} \cdot u(t) \\[4pt]
-0 \leq d_1(t) + d_2(t) &\leq \overline{D} \cdot \bigl(1 - u(t)\bigr) \\[4pt]
+0 \leq c_1(t) + c_2(t) &\leq \overline{C} \cdot u(t) \\
+0 \leq d_1(t) + d_2(t) &\leq \overline{D} \cdot \bigl(1 - u(t)\bigr) \\
 c_1(t),\; c_2(t),\; d_1(t),\; d_2(t) &\geq 0
 \end{aligned}
 $$
@@ -163,7 +167,7 @@ what the store holds.
 
 $$
 \begin{aligned}
-\Delta t \,(1 - e_c)\bigl(c_1(t) + c_2(t)\bigr) &\leq S_{\max}(t) - S(t-1) \\[4pt]
+\Delta t \,(1 - e_c)\bigl(c_1(t) + c_2(t)\bigr) &\leq S_{\max}(t) - S(t-1) \\
 \Delta t \,\bigl(d_1(t) + d_2(t)\bigr) &\leq S(t-1)
 \end{aligned}
 $$
@@ -180,7 +184,7 @@ variables are constant across the two half hours of each hour.
 
 $$
 \begin{aligned}
-c_2(t_1) &= c_2(t_2) \\[4pt]
+c_2(t_1) &= c_2(t_2) \\
 d_2(t_1) &= d_2(t_2)
 \end{aligned}
 \qquad \forall\, t_1, t_2 \in \mathcal{T}_h,\ \ \forall h \in \mathcal{H}
@@ -211,8 +215,8 @@ for the degradation in §4.7:
 
 $$
 \begin{aligned}
-n_{\text{cyc}}(t) &= n_{\text{cyc}}(t-1) + \frac{\Delta t \,\bigl(d_1(t) + d_2(t)\bigr)}{\overline{S}_{\max}} \qquad \forall t \in \mathcal{T} \\[6pt]
-n_{\text{cyc}}(0) &= 0 \\[6pt]
+n_{\text{cyc}}(t) &= n_{\text{cyc}}(t-1) + \frac{\Delta t \,\bigl(d_1(t) + d_2(t)\bigr)}{\overline{S}_{\max}} \qquad \forall t \in \mathcal{T} \\
+n_{\text{cyc}}(0) &= 0 \\
 n_{\text{cyc}}(T) &\leq \overline{L}
 \end{aligned}
 $$
