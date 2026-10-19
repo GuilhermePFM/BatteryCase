@@ -124,6 +124,40 @@ uv run python scripts/reproduce_docs.py dispatch results   # just the headline f
 uv run python scripts/reproduce_docs.py --dry-run          # print the commands, run nothing
 ```
 
+### In Docker
+
+Docker is the way to run the model on a machine with no Python, no uv and no
+solver: the image pins Python 3.12, resolves every dependency from `uv.lock`,
+and carries the two input spreadsheets, so the only requirement on the host is
+Docker itself.
+
+```bash
+scripts/docker-run.sh                       # full dispatch, all three years
+scripts/docker-run.sh inputs                # spec + data quality
+scripts/docker-run.sh dispatch --start 2018-01-01 --end 2018-01-31
+make docker ARGS="dispatch --quiet"         # the same, through the Makefile
+```
+
+The script builds before it runs — a cache no-op when nothing changed, so a
+code edit can never be run as a stale image — which makes one command enough
+from a fresh clone. Every flag in the table above works unchanged — the
+arguments go straight to `battery-case` — and results land in
+`./data/results` on the host, mounted into the container, written as the
+invoking user rather than as root.
+
+| Command | What it is for |
+| --- | --- |
+| `scripts/docker-run.sh [args]` | Run the CLI; no arguments means `dispatch` |
+| `scripts/docker-run.sh --shell` | A shell in the image, for poking at a run |
+| `make docker-test` | The test suite inside the image: the check that it runs anywhere |
+| `DEV=1 ...` | Build the `:dev` image, which adds pytest, mypy, ruff and jupyterlab |
+| `IMAGE=`, `RESULTS_DIR=`, `PLATFORM=` | Override the tag, the host results directory, or the build platform |
+
+The default image installs the runtime stack only (`uv sync --no-dev`); `DEV=1`
+builds with `--all-groups`. On a machine where a dependency has no wheel for the
+native architecture, `PLATFORM=linux/amd64 scripts/docker-run.sh` builds and
+runs under emulation instead.
+
 Development:
 
 ```bash
@@ -203,7 +237,8 @@ docs/*.md             data, architecture, solve, cycle-budget, bisection,
                       validation, glossary
 notebooks/            exploratory analysis, paired .py and .ipynb
 scripts/              the measurement runs behind the documents (`make results`)
-Makefile              render targets for the documents, and `make results`
+Dockerfile            the pinned runtime image; scripts/docker-run.sh drives it
+Makefile              render targets for the documents, `make results`, `make docker`
 pyproject.toml        deps, and the ruff / mypy / pytest configuration
 ```
 

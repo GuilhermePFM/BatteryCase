@@ -36,7 +36,23 @@ PANDOC_ARTICLE := pandoc --standalone --pdf-engine=tectonic $(RESOURCES) \
 	--metadata date="$(shell LC_ALL=C date +'%e %B %Y' | sed 's/^ //')" \
 	$(MONO_OPT)
 
-.PHONY: results results-quick results-list figures html preview pdf pdfs pdf-combined html-stochastic preview-stochastic pdf-stochastic clean-docs
+.PHONY: docker docker-shell docker-test results results-quick results-list figures html preview pdf pdfs pdf-combined html-stochastic preview-stochastic pdf-stochastic clean-docs
+
+## Run the model in Docker: same pinned environment on any machine, results
+## written to data/results on the host. Extra arguments pass through, e.g.
+## `make docker ARGS="dispatch --start 2018-01-01 --end 2018-01-31"`.
+ARGS ?=
+
+docker:
+	scripts/docker-run.sh $(ARGS)
+
+docker-shell:
+	DEV=1 scripts/docker-run.sh --shell
+
+## The test suite inside the image, which is what "it runs anywhere" means.
+## The cache goes to /tmp: /app belongs to root, and the run does not.
+docker-test:
+	DEV=1 scripts/docker-run.sh --shell -c "pytest -o cache_dir=/tmp/pytest_cache"
 
 ## Re-run every measurement the documents quote: the headline dispatch, the
 ## two search methods over every horizon, the tolerance table, and the one-shot

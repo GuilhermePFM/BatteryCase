@@ -149,7 +149,7 @@ $n \in \mathcal{D}$ and every state variable
 $v \in \{S, n_{\text{cyc}}\}$,
 
 $$
-v(n, 0) \;:=\;
+v(n, 0) :=
 \begin{cases}
 v\bigl(a(n), 48\bigr) & n \neq r \\
 0 & n = r
@@ -167,13 +167,13 @@ Revenue is M§3, evaluated at the prices the delivering node turns out to pay.
 For $n \in \mathcal{D}$ and a child $m \in \mathcal{C}(n)$,
 
 $$
-R(n, m, \tau) \;=\; \Delta t \Bigl[\, p_1(m,\tau)\bigl((1 - e_d)\,d_1(n,\tau) - c_1(n,\tau)\bigr) \;+\; p_2(m,\tau)\bigl((1 - e_d)\,d_2(n,\tau) - c_2(n,\tau)\bigr) \Bigr]
+R(n, m, \tau) = \Delta t \Bigl[ p_1(m,\tau)\bigl((1 - e_d) d_1(n,\tau) - c_1(n,\tau)\bigr) + p_2(m,\tau)\bigl((1 - e_d) d_2(n,\tau) - c_2(n,\tau)\bigr) \Bigr]
 $$
 
 and the expectation over the tree weights each delivery by its probability:
 
 $$
-\max \;\; \mathbb{E}\Bigl[\textstyle\sum_{t \in \mathcal{T}} R(t)\Bigr] \;=\; \max \;\; \sum_{n \in \mathcal{D}} \; \sum_{m \in \mathcal{C}(n)} \pi(m) \sum_{\tau = 1}^{48} R(n, m, \tau)
+\max \quad \mathbb{E}\Bigl[\sum_{t \in \mathcal{T}} R(t)\Bigr] = \max \quad \sum_{n \in \mathcal{D}} \sum_{m \in \mathcal{C}(n)} \pi(m) \sum_{\tau = 1}^{48} R(n, m, \tau)
 $$
 
 The equality is the tower property applied to the tree: it is what makes the
@@ -187,13 +187,13 @@ for every child, because they were committed before the child was known. Define
 the **conditionally expected price** of the day following $n$,
 
 $$
-\bar p_m(n, \tau) \;=\; \sum_{m' \in \mathcal{C}(n)} \frac{\pi(m')}{\pi(n)} \; p_m(m', \tau), \qquad m \in \{1, 2\}
+\bar p_m(n, \tau) = \sum_{m' \in \mathcal{C}(n)} \frac{\pi(m')}{\pi(n)} p_m(m', \tau), \qquad m \in \{1, 2\}
 $$
 
 Substituting and collecting terms gives the objective in its working form:
 
 $$
-\max \;\; \sum_{n \in \mathcal{D}} \pi(n) \sum_{\tau=1}^{48} \Delta t \Bigl[\, \bar p_1(n,\tau)\bigl((1 - e_d)\,d_1(n,\tau) - c_1(n,\tau)\bigr) \;+\; \bar p_2(n,\tau)\bigl((1 - e_d)\,d_2(n,\tau) - c_2(n,\tau)\bigr) \Bigr]
+\max \quad \sum_{n \in \mathcal{D}} \pi(n) \sum_{\tau=1}^{48} \Delta t \Bigl[ \bar p_1(n,\tau)\bigl((1 - e_d) d_1(n,\tau) - c_1(n,\tau)\bigr) + \bar p_2(n,\tau)\bigl((1 - e_d) d_2(n,\tau) - c_2(n,\tau)\bigr) \Bigr]
 $$
 
 No price uncertainty remains anywhere in the program. Each decision node sees a
@@ -219,7 +219,7 @@ unchanged, that is said rather than re-argued.
 M§4.1, per node.
 
 $$
-0 \;\leq\; S(n, \tau) \;\leq\; S_{\max}(n, \tau)
+0 \leq S(n, \tau) \leq S_{\max}(n, \tau)
 $$
 
 ### 5.2 Energy balance within a day
@@ -227,7 +227,7 @@ $$
 M§4.2, per node, with the recursion running over the day's periods.
 
 $$
-S(n, \tau) \;=\; S(n, \tau - 1) + \Delta t \,\Bigl[(1 - e_c)\bigl(c_1(n,\tau) + c_2(n,\tau)\bigr) - d_1(n,\tau) - d_2(n,\tau)\Bigr]
+S(n, \tau) = S(n, \tau - 1) + \Delta t \Bigl[(1 - e_c)\bigl(c_1(n,\tau) + c_2(n,\tau)\bigr) - d_1(n,\tau) - d_2(n,\tau)\Bigr]
 $$
 
 ### 5.3 State handover at a day boundary
@@ -250,8 +250,8 @@ M§4.3 and M§4.4, per node, with its own binary.
 
 $$
 \begin{aligned}
-0 \;\leq\; c_1(n,\tau) + c_2(n,\tau) &\;\leq\; \overline{C} \, u(n,\tau) \\
-0 \;\leq\; d_1(n,\tau) + d_2(n,\tau) &\;\leq\; \overline{D} \, \bigl(1 - u(n,\tau)\bigr)
+0 \leq c_1(n,\tau) + c_2(n,\tau) & \leq \overline{C} u(n,\tau) \\
+0 \leq d_1(n,\tau) + d_2(n,\tau) & \leq \overline{D} \bigl(1 - u(n,\tau)\bigr)
 \end{aligned}
 $$
 
@@ -260,7 +260,7 @@ $$
 M§4.5, within the day. Writing $\mathcal{T}_h$ for the two periods of hour $h$,
 
 $$
-c_2(n, \tau) = c_2(n, \tau'), \qquad d_2(n, \tau) = d_2(n, \tau') \qquad \forall\, \tau, \tau' \in \mathcal{T}_h,\ \forall h = 1, \dots, 24
+c_2(n, \tau) = c_2(n, \tau'), \qquad d_2(n, \tau) = d_2(n, \tau') \qquad \forall \tau, \tau' \in \mathcal{T}_h,\ \forall h = 1, \dots, 24
 $$
 
 A day is a whole number of hours, so no hour is split across nodes and this is
@@ -273,14 +273,14 @@ Market 2 is sold in hourly blocks while Market 1 is sold by the half hour.
 M§4.6's accumulation, per node, on the discharge side only.
 
 $$
-n_{\text{cyc}}(n, \tau) \;=\; n_{\text{cyc}}(n, \tau - 1) + \frac{\Delta t \,\bigl(d_1(n,\tau) + d_2(n,\tau)\bigr)}{\overline{S}_{\max}}
+n_{\text{cyc}}(n, \tau) = n_{\text{cyc}}(n, \tau - 1) + \frac{\Delta t \bigl(d_1(n,\tau) + d_2(n,\tau)\bigr)}{\overline{S}_{\max}}
 $$
 
 The count is path dependent: $n_{\text{cyc}}(n, 48)$ is the throughput along the
 path from $r$ to $n$ and nothing else. The budget holds on every realisation,
 
 $$
-n_{\text{cyc}}(n, \tau) \;\leq\; \overline{L} \qquad \forall n \in \mathcal{D},\ \forall \tau
+n_{\text{cyc}}(n, \tau) \leq \overline{L} \qquad \forall n \in \mathcal{D},\ \forall \tau
 $$
 
 Cycle life is a physical property of the asset, not an average over futures that
@@ -299,7 +299,7 @@ cycle on that history.
 M§4.7, per node, linear in the node's accumulated count.
 
 $$
-S_{\max}(n, \tau) \;=\; \overline{S}_{\max}\,\bigl(1 - \rho \, n_{\text{cyc}}(n, \tau)\bigr)
+S_{\max}(n, \tau) = \overline{S}_{\max} \bigl(1 - \rho n_{\text{cyc}}(n, \tau)\bigr)
 $$
 
 As in M§4.7 the variable may be substituted out of §5.1, leaving one row per
@@ -327,13 +327,13 @@ everything else reads exactly like M§4.
 Its size is the tree's. With uniform branching $b$ at each day,
 
 $$
-|\mathcal{N}| \;=\; \frac{b^{K+1} - 1}{b - 1},
+|\mathcal{N}| = \frac{b^{K+1} - 1}{b - 1},
 \qquad
-|\mathcal{L}| \;=\; b^{K},
+|\mathcal{L}| = b^{K},
 \qquad
-|\mathcal{D}| \;=\; \frac{b^{K} - 1}{b - 1},
+|\mathcal{D}| = \frac{b^{K} - 1}{b - 1},
 \qquad
-\text{binaries} \;=\; 48 \, |\mathcal{D}|
+\text{binaries} = 48 |\mathcal{D}|
 $$
 
 so the program grows geometrically in the horizon:
@@ -382,7 +382,7 @@ different seams:
   [`tractability.md`](tractability.md) work on the deterministic model, and the
   tree is its stochastic analogue: a value function per day, estimated from the
   children. Stochastic dual dynamic programming is the standard method here, and
-  it is **not valid as it stands**, because the $u(n, \tau)$ of §5.4 are integer
+ it is **not valid as it stands**, because the $u(n, \tau)$ of §5.4 are integer
   and the value function over the state is therefore not convex. Making it valid means Lagrangian cuts over a binarised state, as in
   SDDiP, or accepting an approximation whose error is not bounded by the method.
 - **By scenario, along the commitment.** Relaxing the split-variable rows of §9

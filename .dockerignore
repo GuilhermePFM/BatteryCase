@@ -1,0 +1,15 @@
+# The image builds its own environment and carries only data/raw.
+.venv/
+.git/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+**/__pycache__/
+**/*.pyc
+.zed/
+notebooks/
+notes/
+data/results/
+data/raw/.~lock.*
+docs/model/*.html
+docs/model/*.pdf
