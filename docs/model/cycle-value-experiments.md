@@ -27,8 +27,8 @@ scripts/reproduce_docs.py --list` for the stages one by one).
 
 Everything below is measured by that script and by `tests/test_cycle_value.py`. One
 *pass* means one full rolling run over the instance: 1,096 window MILPs on the
-three-year horizon. What a pass *costs* depends on the instance — 76 s on the
-calibrated three-year run below, 456 s on the headline run of
+three-year horizon. What a pass *costs* depends on the instance — 44 s on the
+calibrated three-year run below, 172 s on the headline run of
 [§7](results.md), where nothing is priced out
 ([§2](#the-whole-horizon-with-no-truth-to-check-against)) — so the pass count is
 what a method is compared on.
@@ -114,8 +114,8 @@ the capped program solved whole for a ground truth. Raw numbers in
 | 7 | 10.76 | £1,133.62 | 13 | £22.51 | £1,133.62 | 7 | £22.66 | £1,131.23 | £1,133.63 | 0.008% | −0.21% |
 | 14 | 19.67 | £2,190.84 | 13 | £24.71 | £2,176.81 | 8 | £24.49 | £2,176.81 | £2,190.88 | 0.008% | 0.00% |
 | 30 | 43.65 | £4,937.98 | 13 | £28.47 | £4,937.33 | 7 | £28.85 | £4,935.43 | £4,938.22 | 0.004% | −0.04% |
-| 60 | 87.83 | £11,948.15 | 13 | £30.81 | £11,945.75 | 9 | £29.86 | £11,936.95 | £11,948.60 | 0.005% | −0.07% |
-| 90 | 133.03 | £17,594.04 | 13 | £36.77 | £17,592.95 | 9 | £36.17 | £17,577.53 | £17,594.31 | 0.006% | −0.09% |
+| 60 | 87.83 | £11,948.07 | 13 | £30.81 | £11,945.75 | 9 | £29.86 | £11,936.95 | £11,948.60 | 0.005% | −0.07% |
+| 90 | 133.03 | £17,592.35 | 13 | £36.77 | £17,592.95 | 9 | £36.17 | £17,577.53 | £17,594.31 | 0.006% | −0.09% |
 
 **Cutting planes reproduces the bisection, and the agreement improves with the
 horizon.** The one-day instance is its worst showing at −1.03%: with 48 periods
@@ -126,27 +126,31 @@ the penny. The charges agree throughout: £11.28 against £11.33 at one day,
 £36.77 against £36.17 at ninety.
 
 **The bound held in every row**, which is the column no bisection run can
-produce. It sits above the exactly solved optimum in all eight instances, by 1p
-at seven days and 27p at ninety — tighter, at 90 days, than 0.002% of the
-answer. HiGHS's own dual bound on the same instances is £4,938.19 at 30 days and
-£17,594.04 at 90, so the Lagrangian bound is within 3p and 27p of what the
-monolith proves, without ever building the monolith.
+produce. It sits above the best exactly solved objective in all eight
+instances, by 1p at seven days and £1.96 at ninety — 0.011% of the answer at
+90 days. The fairer comparison at that size is against HiGHS's *own* dual bound
+on the same instance, since the 90-day one-shot solve no longer closes to zero
+gap: £4,938.19 at 30 days and £17,594.04 at 90, so the Lagrangian bound is
+within 3p and 27p of what the monolith proves, without ever building the
+monolith.
 
 **And it is consistently cheaper.** Thirteen passes against seven to nine — a
-mean of 8.1 across the sweep — and lower wall clock in every row: 35.8 s against
-45.1 s at ninety days, 10.5 s against 15.6 s at thirty.
+mean of 8.1 across the sweep — and lower wall clock in every row: 24.9 s against
+32.9 s at ninety days, 6.9 s against 11.1 s at thirty.
 
 > [!NOTE]
 > Two artefacts of reading these numbers honestly. The 2- and 4-day gaps come
 > out marginally *negative* (order 1e-9): the master LP's envelope minimum is
 > computed to a tolerance, so it can land a hair above the best evaluated `L`.
 > And every row here has a proven exact answer, including 60 and 90 days, and it
-> is reached far faster than the *unconstrained* window of the same length in
-> [`tractability.md`](tractability.md): 68 s against 173 s at 60 days, and 34 s
-> at 90 days, which that table does not reach at all. Not a contradiction but a
-> different instance: a cycle budget *halved* against use at zero cycle value is
-> itself a strong constraint, and it prunes the search that the unconstrained
-> window leaves open.
+> is reached faster at 60 days than the *unconstrained* window of the same
+> length in [`tractability.md`](tractability.md) — 66 s against 173 s — and at
+> 90 days it is reached at all, which that table never attempts. Not a
+> contradiction but a different instance: a cycle budget *halved* against use at
+> zero cycle value is itself a strong constraint, and it prunes the search that
+> the unconstrained window leaves open. It does not make the instance cheap:
+> the 90-day capped solve still takes 161 s and stops at a 0.010% gap rather
+> than a proof.
 
 ### The whole horizon, with no truth to check against
 
@@ -159,38 +163,38 @@ it spends at zero cycle value. Raw numbers in
 
 | Days | Periods | Budget | Passes | λ | Profit | Bound | Dual gap | Bound − profit | Wall clock | Per pass |
 | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
-| 180 | 8,640 | 258.93 | 9 | £39.04 | £30,515.91 | £30,594.05 | 0.005% | 0.26% | 78.5 s | 8.7 s |
-| 365 | 17,520 | 483.42 | 9 | £42.33 | £60,159.13 | £60,424.93 | 0.007% | 0.44% | 137.7 s | 15.3 s |
-| 1,096 | 52,608 | 1,721.48 | 10 | £30.17 | £184,008.73 | £187,240.16 | 0.003% | 1.73% | 763.7 s | 76.4 s |
+| 180 | 8,640 | 258.95 | 9 | £39.04 | £30,515.91 | £30,594.49 | 0.005% | 0.26% | 52.9 s | 5.9 s |
+| 365 | 17,520 | 483.39 | 9 | £42.33 | £60,156.89 | £60,423.98 | 0.007% | 0.44% | 99.5 s | 11.1 s |
+| 1,096 | 52,608 | 1,721.30 | 10 | £30.19 | £184,021.30 | £187,234.28 | 0.003% | 1.72% | 439.6 s | 44.0 s |
 
 **The pass count does not grow with the horizon.** Nine passes at 180 and 365
 days and ten over three years, against the seven to nine the 1-to-90-day rows
 spend. Bisection's 13 is a constant as well, so its 1.5× stays 1.5×: roughly 17
 minutes against 13 on the full horizon.
 
-**A pass costs about 76 seconds on this instance.** Three years prices in
-12 min 44 s end to end, ten passes. Per window MILP that is 0.070 s over three
-years against 0.042–0.048 s at 180 and 365 days: the cost is near enough linear
-in the horizon, with the full run half again as dear per window. That last part
-is measured, not explained. The figure is specific to a *binding* budget: at
-`λ ≈ £30` most marginal trades are priced out and each window MILP is easy. The
-headline run of [§7](results.md), on the full 5,000-cycle budget where `λ = 0`,
-spends 455.7 s on the same 1,096 windows — 0.416 s each, nearly six times
-dearer. A pass is the unit of *count*, not a fixed quantity of time.
+**A pass costs about 44 seconds on this instance.** Three years prices in
+7 min 20 s end to end, ten passes. Per window MILP that is 0.040 s over three
+years against 0.030–0.033 s at 180 and 365 days: the cost is near enough linear
+in the horizon, with the full run a third again as dear per window. That last
+part is measured, not explained. The figure is specific to a *binding* budget:
+at `λ ≈ £30` most marginal trades are priced out and each window MILP is easy.
+The headline run of [§7](results.md), on the full 5,000-cycle budget where
+`λ = 0`, spends 172.4 s on the same 1,096 windows — 0.157 s each, nearly four
+times dearer. A pass is the unit of *count*, not a fixed quantity of time.
 
 **The dual converges; the deliverable plan drifts.** The gap column holds at
 0.003–0.007%, which is the master LP closing on λ, and it is not the interesting
 column here. The distance from the bound to the *feasible* plan is: 0.10% at
-90 days, 0.26% at 180, 0.44% at 365, 1.73% over three years — £3,231 between
-£184,008.73 and £187,240.16. Whether that is the recovery pass giving up profit
+90 days, 0.26% at 180, 0.44% at 365, 1.72% over three years — £3,213 between
+£184,021.30 and £187,234.28. Whether that is the recovery pass giving up profit
 or the bound being loose cannot be separated without a proven optimum, and none
 exists at this size. The honest statement is the weaker one the certificate
-actually supports: on the three-year instance this plan is within 1.73% of
+actually supports: on the three-year instance this plan is within 1.72% of
 anything the relaxation admits.
 
 > [!NOTE]
 > This is still not the headline instance. The budget here is half of at zero cycle value
-> use, 1,721 cycles over three years, which is why λ is £30.17. Under §5's
+> use, 1,721 cycles over three years, which is why λ is £30.19. Under §5's
 > 5,000-cycle budget the cap does not bind at all and both methods stop after a
 > single pass.
 
@@ -251,6 +255,6 @@ None of the three reasons is profit:
   methods stop after a single pass, which `tests/test_cycle_value.py` asserts. All of
   this serves the pro-rated 1,500-cycle reading, and quotas.
 - **The three-year calibrated run has no ground truth.** It is measured — 10
-  passes, 12 min 44 s, λ = £30.17 — but the exact MILP that validated the bound
+  passes, 7 min 20 s, λ = £30.19 — but the exact MILP that validated the bound
   at 30 days cannot be built at this size, so nothing independent confirms the
-  £184,008.73. The bound is what stands in for it, and it is 1.73% away.
+  £184,021.30. The bound is what stands in for it, and it is 1.72% away.

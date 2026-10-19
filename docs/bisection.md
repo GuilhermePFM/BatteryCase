@@ -25,7 +25,7 @@ This page is the other one: a bisection on cycle use. It is kept for
   built, so the only independent read on the default's plan at those sizes is
   a second method that arrives at it another way. Its deliverable also comes
   straight off a capped pass with no recovery step, which is what makes it the
-  instrument for asking whether the default's 1.73% at three years is duality
+  instrument for asking whether the default's 1.72% at three years is duality
   gap or recovery drift.
 - **It assumes almost nothing.** Monotonicity of cycle use in `λ` is the whole
   theory, so it is the easiest way to see what `λ` *is* before any dual

@@ -16,11 +16,11 @@ cycle budget:
 | Figure | Value |
 | --- | --- |
 | **Profit** | **£207,365** |
-| Energy bought | 14,497 MWh at a mean £34.98/MWh |
-| Energy delivered | 13,083 MWh at a mean £54.61/MWh |
+| Energy bought | 14,495 MWh at a mean £34.98/MWh |
+| Energy delivered | 13,082 MWh at a mean £54.61/MWh |
 | Equivalent full cycles | 3,443 of 5,000 |
 | Storage volume at the end | 3.86 MWh, from 4.00 nominal |
-| Periods charging / discharging / idle | 16,779 / 15,182 / 20,647 of 52,608 |
+| Periods charging / discharging / idle | 16,774 / 15,179 / 20,655 of 52,608 |
 | Profit per cycle spent | £60.23 |
 
 Reproduce with `uv run battery-case dispatch`, which writes the half-hourly
@@ -33,8 +33,8 @@ stages run together as `make results`.
 
 **The markets are used as a pair, not interchangeably.** Market 2 is dearer
 than Market 1 in 77.5% of periods, by £3.51/MWh on average, and the plan
-takes that: of the 14,497 MWh bought, 11,210 is bought in Market 1, and of the
-13,083 MWh delivered, 11,173 goes into Market 2. Part of the profit is
+takes that: of the 14,495 MWh bought, 11,208 is bought in Market 1, and of the
+13,082 MWh delivered, 11,171 goes into Market 2. Part of the profit is
 arbitrage over time, part is the standing gap between the two markets, and the
 hourly commitment of §4.5 is what the second part is paid for bearing.
 
@@ -50,13 +50,13 @@ materially different: fewer, wider spreads.
 | Year | Profit | Mean Market 1 price | Mean Market 2 price | Cycles |
 | --- | --- | --- | --- | --- |
 | 2018 | £67,478 | £58.22/MWh | £61.72/MWh | 967 |
-| 2019 | £63,991 | £41.84/MWh | £45.35/MWh | 1,166 |
-| 2020 | £75,897 | £33.33/MWh | £36.84/MWh | 1,311 |
+| 2019 | £63,991 | £41.84/MWh | £45.35/MWh | 1,165 |
+| 2020 | £75,897 | £33.33/MWh | £36.84/MWh | 1,310 |
 
 2020 is the most profitable year on the cheapest prices. The battery is paid
 for the *spread* rather than the level, and the spread widened as the level
 fell, which is also why it trades more each year: 967 cycles in 2018 against
-1,311 in 2020.
+1,310 in 2020.
 
 **Scale.** A perfect-foresight yardstick of one ideal 4 MWh cycle a day, bought
 at each day's lowest price and sold at its highest, earns £178,254 over the same

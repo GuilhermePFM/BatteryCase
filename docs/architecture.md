@@ -154,7 +154,7 @@ A `Protocol` taking prices and returning a plan, rather than an abstract base cl
 
 **`CycleOracle` · `DualPoint`** · `modelling/cycle_value/oracle.py` · §6
 
-One pass of the horizon at one charge, memoised on `(price, relaxed)` and counted. The pass is the unit of cost — 76 s on the three-year horizon when the budget binds and `λ ≈ £30` prices the marginal trades out, 456 s on the headline run where `λ = 0` and nothing is — so it is written once and `oracle.passes` is the number any comparison of methods turns on rather than a figure each method reports about itself. `DualPoint` is what a pass yields: the Lagrangian value, the exact subgradient, the profit, the cycles, the plan, and whether that plan is deliverable.
+One pass of the horizon at one charge, memoised on `(price, relaxed)` and counted. The pass is the unit of cost — 44 s on the three-year horizon when the budget binds and `λ ≈ £30` prices the marginal trades out, 172 s on the headline run where `λ = 0` and nothing is — so it is written once and `oracle.passes` is the number any comparison of methods turns on rather than a figure each method reports about itself. `DualPoint` is what a pass yields: the Lagrangian value, the exact subgradient, the profit, the cycles, the plan, and whether that plan is deliverable.
 
 **`DualSearch` · `SEARCHES`** · `modelling/cycle_value/oracle.py` · `modelling/cycle_value/searches.py` · §6
 
@@ -223,7 +223,7 @@ problem). `ModelContext` is the **Parameter Object** that keeps the strategy sig
   previous design could only test the assembled model, through a solve.
 - **A constraint can be valued.** `blocks` is an argument, so omitting one and
   re-solving measures what it costs. Over week 1 of the real prices, dropping
-  `hourly_commitment` lifts profit from £1,231.12 to £1,249.77, so the hourly
+  `hourly_commitment` lifts profit from £1,231.06 to £1,249.77, so the hourly
   commitment of §4.5 costs about £19 a week, measured with no new model code to
   write or keep correct. `relaxing(*blocks)` is that omission as a named
   operation, and it is what [§4](#4-how-to-obtain-the-lagrangian-price-cutting-planes-and-bissection) builds

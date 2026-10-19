@@ -206,7 +206,7 @@ feasible.
 >
 > **The gap is on the dual, not on the plan.** The dual gap holds at
 > 0.003–0.007% on the long horizons while the distance from the bound to the
-> *feasible* plan is 0.44% at a year and 1.73% over three years — £3,231. The
+> *feasible* plan is 0.44% at a year and 1.72% over three years — £3,213. The
 > recovery pass, not the search, is what that measures.
 >
 > Both are measured in
@@ -226,7 +226,7 @@ Under the pro-rated 1,500-cycle budget from §5
 (`ModelParameters.prorated_cycle_budget()`) it binds, 3,443 unrationed use
 against 1,500 available, and `λ` becomes active. What it is worth over the whole
 three years is **not measured against a truth**: the run itself is cheap enough
-— ten passes, 12 min 44 s with cutting planes — but nothing at that size can be
+— ten passes, 7 min 20 s with cutting planes — but nothing at that size can be
 solved exactly to check it. It *is* checked on shorter instances with the budget
 halved, against the exact answer. On 30 days of real prices the shadow
 price is £28.85 a cycle and both methods land within 0.05% of an exactly solved

@@ -127,7 +127,7 @@ uv run python scripts/reproduce_docs.py --dry-run          # print the commands,
 Development:
 
 ```bash
-uv run pytest             # 118 tests, ~50 s
+uv run pytest             # 118 tests, ~40 s
 uv run mypy               # strict
 uv run ruff check . --fix
 uv run ruff format .

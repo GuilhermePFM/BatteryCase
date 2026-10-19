@@ -141,7 +141,7 @@ for days in days_to_sweep:
     if solve_exactly:
         started = time.perf_counter()
         problem, _ = build_problem(settlement, params)
-        stats = problem.solve(default_solver(time_limit=EXACT_TIME_LIMIT))
+        stats = problem.solve(default_solver(time_limit=EXACT_TIME_LIMIT, periods=len(settlement)))
         objective = pulp.value(problem.objective)
         row["exact_status"] = stats.status.name
         row["exact_seconds"] = round(time.perf_counter() - started, 1)

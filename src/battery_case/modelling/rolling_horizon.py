@@ -44,6 +44,7 @@ from battery_case.modelling.window_problem import default_solver, solve_window
 #: Periods in a day — the default window and lookahead length.
 PERIODS_PER_DAY = 48
 
+
 @dataclass(frozen=True, slots=True)
 class WindowProgress:
     """How far a pass has got, as the window that was just committed.
@@ -117,7 +118,10 @@ class RollingPolicy:
 
     def dispatch(self, settlement: SettlementPeriods, params: ModelParameters) -> pd.DataFrame:
         """Dispatch over a prepared settlement, returning the plan."""
-        solver = default_solver(time_limit=self.time_limit)
+        solver = default_solver(
+            time_limit=self.time_limit,
+            periods=self.commit_periods + self.lookahead_periods,
+        )
         parts: dict[str, list[np.ndarray]] = {name: [] for name in _DECISIONS}
         state = EMPTY_BATTERY
 

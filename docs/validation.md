@@ -19,7 +19,7 @@ from any plan. It runs against synthetic shapes, the clock-change week, and
 the full three-year output.
 
 ```bash
-uv run pytest        # 118 tests, ~50 s. The MILP tests need no spreadsheet,
+uv run pytest        # 118 tests, ~40 s. The MILP tests need no spreadsheet,
                      # the loader tests need no solver.
 ```
 

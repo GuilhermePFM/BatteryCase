@@ -183,8 +183,7 @@ class CuttingPlaneSearch:
             reporter.phase(
                 "recover",
                 "done",
-                f"skipped, the relaxed plan is already within budget "
-                f"({best.cycles:,.1f} cycles)",
+                f"skipped, the relaxed plan is already within budget ({best.cycles:,.1f} cycles)",
             )
             return best
 

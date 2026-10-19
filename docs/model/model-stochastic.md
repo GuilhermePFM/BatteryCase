@@ -348,8 +348,8 @@ so the program grows geometrically in the horizon:
 The second row is the useful comparison in one respect only: a **one-week** tree
 that branches three ways a day carries as many binaries as the **three-year**
 deterministic program of M§6. It should not be read as implying the same
-difficulty. That program's hour was spent entirely at the root
-([`tractability.md`](tractability.md): `Nodes 0`, the search never branched), on a
+difficulty. That program's hour was spent almost entirely at the root
+([`tractability.md`](tractability.md): `Nodes 2`, the search barely branched), on a
 relaxation weakened by a cycle budget coupling 1,096 days; over a week that budget
 does not bind and the paths are short. The point of the table is the exponent, not
 the row: a tree over three years of daily stages has more nodes than can be

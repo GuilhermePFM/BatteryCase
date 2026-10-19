@@ -25,7 +25,7 @@ from battery_case.modelling.constraints import (
     profit_objective,
 )
 from battery_case.modelling.parameters import ModelParameters
-from battery_case.modelling.periods import SettlementPeriods
+from battery_case.modelling.periods import PERIODS_PER_HOUR, SettlementPeriods
 from battery_case.modelling.variables import (
     EMPTY_BATTERY,
     BatteryState,
@@ -73,7 +73,7 @@ def solve_window(
     it when the cycle budget binds.
     """
     problem, var = build_problem(settlement, params, state, cycle_value=cycle_value, blocks=blocks)
-    stats = problem.solve(solver if solver is not None else default_solver())
+    stats = problem.solve(solver or default_solver(periods=len(settlement)))
 
     if stats.status is not pulp.LpSolveStatus.Optimal:
         raise RuntimeError(
@@ -150,12 +150,44 @@ TUNED_OPTIONS: dict[str, Any] = {
 }
 
 
-def default_solver(*, time_limit: float | None = None) -> pulp.LpSolver:
-    """HiGHS, quietly, with :data:`TUNED_OPTIONS`.
+#: Window length, in periods, at which :data:`TUNED_OPTIONS` stops being used.
+#:
+#: The settings of :data:`TUNED_OPTIONS` are measured on a 96-period window,
+#: where the node count is 1 and the heuristics are pure overhead
+#: (:doc:`solver-parameter-tunning <../../docs/model/solver-parameter-tunning>`
+#: §2). That premise fails as the window grows: a longer program does branch,
+#: and then the heuristics it has been denied are what find its incumbent.
+#: Measured on one-shot MILPs over real prices, the crossover is sharp and sits
+#: right here — tuned against stock, same machine, same data:
+#:
+#: ===========  ==========  ==========
+#: Window       Tuned       Stock
+#: ===========  ==========  ==========
+#: 7 days       0.9 s       2.5 s
+#: 14 days      18.3 s      9.6 s
+#: 30 days      *300 s, no proof*  23.4 s
+#: ===========  ==========  ==========
+#:
+#: So a fortnight and up is solved stock. Every window the rolling policy of §6
+#: actually poses is 96 periods, far below this, and keeps the tuning.
+TUNING_PERIOD_LIMIT = 14 * 24 * PERIODS_PER_HOUR
 
-    It ships as a dependency and reads the model in process.
+
+def default_solver(
+    *, time_limit: float | None = None, msg: bool = False, periods: int | None = None
+) -> pulp.LpSolver:
+    """HiGHS, quiet unless ``msg`` is set, tuned for windows below a fortnight.
+
+    It ships as a dependency and reads the model in process. ``periods`` is the
+    length of the program being solved: below :data:`TUNING_PERIOD_LIMIT` it is
+    given :data:`TUNED_OPTIONS`, at or above it the stock settings, which are
+    faster there by a wide margin. ``None`` means a rolling window and takes the
+    tuning. ``msg=True`` lets the HiGHS log through, which is what
+    :doc:`tractability <../../docs/model/tractability>` reads its bound
+    progression out of.
     """
-    return pulp.HiGHS(msg=False, timeLimit=time_limit, **TUNED_OPTIONS)
+    tuned = periods is None or periods < TUNING_PERIOD_LIMIT
+    return pulp.HiGHS(msg=msg, timeLimit=time_limit, **(TUNED_OPTIONS if tuned else {}))
 
 
 def _values(variables: list[pulp.LpVariable]) -> np.ndarray:

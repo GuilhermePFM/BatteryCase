@@ -61,6 +61,37 @@ The 2.47× on a real pass exceeds the 1.82× the per-window benchmark of §3
 predicts, because the per-window figure carries ~6 ms of pulp build and
 transfer (§1) that no solver option can touch.
 
+### They apply to windows only, and the cutoff is measured
+
+Everything on this page is measured on a 96-period window, and §2 is why it
+works: the node count is 1, so the heuristics are overhead on a solve that was
+already finished at the root. That premise does not survive a longer program.
+Past a fortnight the one-shot MILP genuinely branches, and the heuristics it has
+been denied are what find its incumbent. Tuned against stock on one-shot MILPs
+over the real prices, same machine, same data:
+
+| Window | Tuned | Stock | |
+| --- | --: | --: | --- |
+| 7 days | **0.9 s** | 2.5 s | tuning wins, 2.8× |
+| 14 days | 18.3 s | **9.6 s** | stock wins, 1.9× |
+| 30 days | *300 s, time limit, no proof* | **23.4 s** | stock wins outright |
+
+The 30-day row is the one that settles it: with the tuning on, a window that
+solves to proven optimality in 23 seconds could not be proved at all inside
+five minutes. So `default_solver` takes the length of the program it is given
+and applies `TUNED_OPTIONS` only below `TUNING_PERIOD_LIMIT`, a fortnight:
+
+```python
+tuned = periods is None or periods < TUNING_PERIOD_LIMIT  # 14 * 24 * 2 = 672
+```
+
+Every window the rolling policy of §6 poses is 96 periods, so the horizon pass
+keeps the full 2.47×. The one-shot measurements of
+[`tractability.md`](tractability.md) are all a fortnight or longer except the
+first four rows, so that table is now stock HiGHS where it matters and tuned
+only where tuning is faster. Nothing on this page changes: these are the same
+settings, scoped to the shape they were measured on.
+
 **This is not the fastest configuration measured.** Adding
 `mip_heuristic_run_root_reduced_cost=False` reaches 1.96× per window (8% faster
 than the shipped 1.82×) and 142.1 s on the full horizon (19% less wall time than

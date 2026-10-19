@@ -672,7 +672,7 @@ $$
 the last being MS§6's figure exactly. The one-week $b = 3$ tree is then $1{,}093$
 decision nodes, $\approx 0.37$M columns and $52{,}464$ binaries, which is MS§6's
 comparison: a **week** of three-way branching is the three-year deterministic
-program, whose hour-long run stopped at a 2.02% gap.
+program, whose hour-long run stopped at a 0.90% gap.
 
 ### 8.5 Which dimension is expensive
 
@@ -690,11 +690,13 @@ a branch costs a factor of $((b{+}1)/b)^{K-1}$. Tabulated:
 
 Now the sobering part, and the reason the comparison in MS§6 is generous rather
 than harsh. The binary count of the three-year deterministic program is the wrong
-yardstick, because that program *was not solved* — it stopped at 2.02%. The
-yardstick for a **provable** solve is the cliff in `tractability.md`: a 30-day
-window (1,440 binaries) proved optimal in 30 s, and a 60-day window (2,880
-binaries) could not be proved in 900 s. Taking $\approx$ 2,000 binaries as the
-envelope, i.e. $|\mathcal{D}| \lesssim 40$:
+yardstick, because that program *was not solved* — it stopped at 0.90%. The
+yardstick for a **provable** solve is the largest window `tractability.md`
+proves: a 30-day window (1,440 binaries) proves optimal in 24 s and a 60-day
+window (2,880 binaries) in 173 s, while the three-year program (52,608
+binaries) is not proved in an hour. Solve time is already multiplying by seven
+across that last doubling, so take $\approx$ 2,000 binaries as the envelope —
+conservative, and inside what is measured — i.e. $|\mathcal{D}| \lesssim 40$:
 
 | $b$ | largest $K$ with $|\mathcal{D}| \lesssim 40$ | scenarios |
 | --: | --: | --: |

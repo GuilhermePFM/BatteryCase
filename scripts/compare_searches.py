@@ -56,7 +56,7 @@ print("-" * len(header))
 if days <= EXACT_LIMIT_DAYS:
     started = time.perf_counter()
     problem, _ = build_problem(settlement, params)
-    problem.solve(default_solver())
+    problem.solve(default_solver(periods=len(settlement)))
     exact = float(pulp.value(problem.objective))
     print(
         f"{'exact (1 MILP)':<16}{'—':>8}{time.perf_counter() - started:>10.1f}"

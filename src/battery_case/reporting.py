@@ -488,9 +488,7 @@ class ConsoleReporter(NullReporter):
         filled = max(0, min(width, round(fraction * width)))
         if not self._unicode:
             return self._paint("=" * filled, "cyan") + "-" * (width - filled)
-        return self._paint("▌" * filled, "cyan") + self._paint(
-            "░" * (width - filled), "dim"
-        )
+        return self._paint("▌" * filled, "cyan") + self._paint("░" * (width - filled), "dim")
 
     # -- events -----------------------------------------------------------
 
@@ -545,9 +543,7 @@ class ConsoleReporter(NullReporter):
     def search_started(self, plan: SearchPlan) -> None:
         self._search = plan
         columns = (*SHARED_COLUMNS, *plan.columns)
-        header = "   " + "  ".join(
-            f"{self._line(c.header):>{self._col_width(c)}}" for c in columns
-        )
+        header = "   " + "  ".join(f"{self._line(c.header):>{self._col_width(c)}}" for c in columns)
         rule = "   " + "  ".join(
             ("─" if self._unicode else "-") * self._col_width(c) for c in columns
         )
@@ -662,8 +658,9 @@ class ConsoleReporter(NullReporter):
         head = (
             f"   {self._paint(self._cell(SHARED_COLUMNS[0], index), 'cyan')}  "
             f"{self._cell(SHARED_COLUMNS[1], cycle_value)}  "
-            + "  ".join(f"{'·' if self._unicode else '.':>{self._col_width(c)}}"
-                        for c in SHARED_COLUMNS[2:])
+            + "  ".join(
+                f"{'·' if self._unicode else '.':>{self._col_width(c)}}" for c in SHARED_COLUMNS[2:]
+            )
         )
         mode = label or ("relaxed" if relaxed else "capped")
         head = f"{head}  {self._paint(mode, 'amber' if relaxed else 'green')}"
@@ -704,10 +701,7 @@ class ConsoleReporter(NullReporter):
             return f"pass {index} · passes remaining unknown"
         total = index + left
         if plan.passes_known:
-            return (
-                f"pass {index} of {total} · "
-                f"~{_duration(left * mean)} left in the run"
-            )
+            return f"pass {index} of {total} · ~{_duration(left * mean)} left in the run"
         return (
             f"pass {index} · ~{left} more pass(es) expected "
             f"· ~{_duration(left * mean)} left in the run"

@@ -306,16 +306,16 @@ solved as a sequence of many small programs rather than one large one.
 ### Problem tractability
 
 Posed whole, the program carries one binary $u(t)$ for each of the 52,608
-periods. Solve time grows steeply, and erratically, with the window length: on
-this data a day solves in under 0.1 s and two days in 0.3 s, but a week takes
-around 2.5 s and a fortnight around 10 s. A month is proved optimal in 23 s and
-two months in 173 s — though that last figure is the unstable one, an earlier
-run of the same instance having failed to prove it inside 900 s. Posed whole,
-the program is 315,649 rows, 368,256 columns and 52,608 binaries; given an hour,
-HiGHS never left the root node, returning a feasible plan worth
-£204,077.77 against a dual bound of £208,209.57, a 2.02% gap and £3,287 worse
-than the decomposition reaches in minutes. The full measurements are in
-[`tractability.md`](tractability.md).
+periods. Solve time grows steeply with the window length: a fortnight solves in
+around 10 s, a month in 24 s and two months in 173 s, all proved optimal. (The
+shorter windows are solved with tuned HiGHS settings and the longer ones stock,
+so times either side of a fortnight are not directly comparable; see
+[`solver-parameter-tunning.md`](solver-parameter-tunning.md#they-apply-to-windows-only-and-the-cutoff-is-measured).)
+Posed whole, the program is 315,649 rows, 368,256 columns and 52,608 binaries;
+given an hour, HiGHS explored two nodes, returning a feasible plan worth
+£206,318.80 against a dual bound of £208,166.65, a 0.90% gap and £1,046 worse
+than the decomposition reaches in under three minutes. The full measurements are
+in [`tractability.md`](tractability.md).
 
 The horizon is therefore walked in windows. Each window solves
 $\text{commit} + \text{lookahead}$ periods, keeps the decisions of the
