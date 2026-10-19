@@ -126,7 +126,7 @@ uv run python scripts/reproduce_docs.py --dry-run          # print the commands,
 
 ### In Docker
 
-Docker is the way to run the model on a machine with no Python, no uv and no
+For better compatibility, a Docker script is available to run the model on a machine with no Python, no uv and no
 solver: the image pins Python 3.12, resolves every dependency from `uv.lock`,
 and carries the two input spreadsheets, so the only requirement on the host is
 Docker itself.
